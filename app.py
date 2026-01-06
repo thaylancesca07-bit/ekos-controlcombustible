@@ -7,12 +7,20 @@ from fpdf import FPDF
 # --- 1. CONFIGURACIÓN E IDENTIDAD 🇵🇾 ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
+# ENLACES DE CONEXIÓN
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMiQPn1c5dG_bB0GVS5LSeKqMal2R3YsBtpfTGM1kM_JFMalrzahyEKgHcUG5cnyW9/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E" 
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 ACCESS_CODE_AUDITORIA = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
+
+# TRADUCCIÓN DE COMBUSTIBLES PETROBRAS
+MAPA_COMBUSTIBLE = {
+    "4002147 - Diesel EURO 5 S-50": "Diesel S500",
+    "4002151 - NAFTA GRID 95": "Nafta",
+    "4001812 - Diesel podium S-10 gr.": "Diesel Podium"
+}
 
 # MAPEO DE ENCARGADOS -> CONTRASEÑA Y SU BARRIL ASIGNADO
 ENCARGADOS_DATA = {
@@ -58,6 +66,8 @@ class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS 🇵🇾', 0, 1, 'C')
+        self.set_font('Arial', 'I', 10)
+        self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza', 0, 1, 'C')
         self.ln(5)
 
 def generar_pdf(df):
@@ -79,110 +89,83 @@ def generar_pdf(df):
     return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. INTERFAZ ---
-st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
+st.title("⛽ Ekos Forestal / Control Integrado 2026")
+st.markdown("---")
 
-tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro", "🔐 Auditoría & Stock", "📊 Gráficos", "🔍 Confirmación Petrobras"])
+tabs = st.tabs(["👋 Registro", "🔐 Auditoría", "📊 Gráficos", "🔍 Conciliación Petrobras"])
 
 # --- TAB 1: REGISTRO ---
-with tab1:
-    st.subheader("🔑 Acceso de Encargado")
-    c_auth1, c_auth2 = st.columns(2)
-    with c_auth1: encargado_sel = st.selectbox("Encargado:", options=list(ENCARGADOS_DATA.keys()))
-    with c_auth2: pwd_input = st.text_input("Contraseña:", type="password")
+with tabs[0]:
+    st.subheader("🔑 Validación")
+    c_a1, c_a2 = st.columns(2)
+    with c_a1: encargado = st.selectbox("Encargado:", options=list(ENCARGADOS_DATA.keys()))
+    with c_a2: pwd = st.text_input("Contraseña:", type="password")
 
-    if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
-        st.markdown("---")
-        operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+    if pwd == ENCARGADOS_DATA[encargado]["pwd"]:
+        op = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+        barril_propio = ENCARGADOS_DATA[encargado]["barril"]
         
-        mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
-        op_origen = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"] if encargado_sel == "Admin Ekos" else [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
+        orig_op = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"] if encargado == "Admin Ekos" else [barril_propio, "Surtidor Petrobras", "Surtidor Shell"]
         
-        c_f1, c_f2 = st.columns(2)
-        with c_f1:
-            if "Máquina" in operacion:
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            if "Máquina" in op:
                 sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
-                cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
-                origen = st.selectbox("¿De dónde sale el combustible?", op_origen)
+                cod, nom, uni = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
+                orig = st.selectbox("Origen:", orig_op)
             else:
-                cod_f = st.selectbox("Barril a llenar:", options=BARRILES_LISTA if encargado_sel == "Admin Ekos" else [mi_barril])
-                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor de Origen:", ["Surtidor Petrobras", "Surtidor Shell"])
+                cod = st.selectbox("Barril:", options=BARRILES_LISTA if encargado == "Admin Ekos" else [barril_propio])
+                nom, uni, orig = cod, "Litros", st.selectbox("Surtidor:", ["Surtidor Petrobras", "Surtidor Shell"])
         
-        with c_f2:
-            tipo_comb = st.selectbox("Tipo de Combustible ⛽:", TIPOS_COMBUSTIBLE)
+        with col_f2: tipo_c = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
 
-        with st.form("form_final_v16", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                chofer, fecha, actividad = st.text_input("Nombre del Chofer / Operador 🧑‍🌾"), st.date_input("Fecha 📅", date.today()), st.text_input("Actividad 🔨")
-            with col2:
-                litros, lectura = st.number_input("Litros 💧", min_value=0.0, step=0.1), st.number_input(f"Lectura ({unidad}) 🔢", min_value=0.0) if "Máquina" in operacion else 0.0
-            
-            if st.form_submit_button("✅ GUARDAR REGISTRO"):
-                if not chofer or not actividad:
-                    st.warning("⚠️ Completa los datos.")
-                else:
-                    payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": actividad, "lectura_actual": lectura, "litros": litros, "tipo_combustible": tipo_comb}
+        with st.form("registro_v20", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1: chof, fec, act = st.text_input("Chofer"), st.date_input("Fecha", date.today()), st.text_input("Actividad")
+            with c2: lts, lec = st.number_input("Litros", min_value=0.0), st.number_input(f"Lectura ({uni})", min_value=0.0) if "Máquina" in op else 0.0
+            if st.form_submit_button("✅ GUARDAR"):
+                if chof and act:
+                    pay = {"fecha": str(fec), "tipo_operacion": op, "codigo_maquina": cod, "nombre_maquina": nom, "origen": orig, "chofer": chof, "responsable_cargo": encargado, "actividad": act, "lectura_actual": lec, "litros": lts, "tipo_combustible": tipo_c}
                     try:
-                        r = requests.post(SCRIPT_URL, json=payload)
-                        if r.status_code == 200: st.balloons(); st.success("¡Guardado!")
+                        if requests.post(SCRIPT_URL, json=pay).status_code == 200: st.balloons(); st.success("¡Éxito!")
                     except: st.error("Error de conexión.")
-    elif pwd_input: st.error("❌ Contraseña incorrecta.")
+    elif pwd: st.error("❌ Contraseña incorrecta.")
 
 # --- TAB 2: AUDITORÍA ---
-with tab2:
-    if st.text_input("PIN Maestro Auditoría", type="password", key="p_aud") == ACCESS_CODE_AUDITORIA:
+with tabs[1]:
+    if st.text_input("PIN Auditoría", type="password", key="p_aud") == ACCESS_CODE_AUDITORIA:
         try:
-            df = pd.read_csv(SHEET_URL)
-            if not df.empty:
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-                st.subheader("📅 Historial por Mes")
-                cf1, cf2 = st.columns(2)
-                with cf1:
-                    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-                    m_sel = st.selectbox("Mes:", options=range(1, 13), format_func=lambda x: meses[x-1], index=date.today().month - 1)
-                with cf2:
-                    a_sel = st.selectbox("Año:", options=[2025, 2026], index=1)
-                
-                df_mes = df[(df['fecha'].dt.month == m_sel) & (df['fecha'].dt.year == a_sel)]
-                
-                st.subheader("📦 Stock Actual Real")
-                cb = st.columns(4)
-                for i, b in enumerate(BARRILES_LISTA):
-                    ent, sal = df[df['codigo_maquina'] == b]['litros'].sum(), df[df['origen'] == b]['litros'].sum()
-                    cb[i].metric(b, f"{ent - sal:.1f} L")
-                
-                st.dataframe(df_mes, use_container_width=True)
-                csv = df_mes.to_csv(index=False, sep=';').encode('latin-1')
-                st.download_button("📥 Descargar Excel", csv, f"auditoria_{m_sel}.csv")
-        except: st.error("Error al leer datos.")
+            df = pd.read_csv(SHEET_URL).dropna(subset=['fecha'])
+            df['fecha'] = pd.to_datetime(df['fecha'])
+            st.subheader("📦 Stock Real")
+            cb = st.columns(4)
+            for i, b in enumerate(BARRILES_LISTA):
+                cb[i].metric(b, f"{df[df['codigo_maquina']==b]['litros'].sum() - df[df['origen']==b]['litros'].sum():.1f} L")
+            st.dataframe(df.sort_values(by='fecha', ascending=False))
+        except: st.error("No se pudo leer la base de datos.")
 
 # --- TAB 3: GRÁFICOS ---
-with tab3:
-    if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_AUDITORIA:
+with tabs[2]:
+    if st.text_input("PIN Reportes", type="password", key="p_rep") == ACCESS_CODE_AUDITORIA:
         try:
-            df_full = pd.read_csv(SHEET_URL)
-            if not df_full.empty:
-                df_maq = df_full[df_full['tipo_operacion'].str.contains("Máquina")]
-                st.subheader("📊 Consumo Total por Equipo")
-                st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
-                pdf_b = generar_pdf(df_maq)
-                st.download_button("📄 Descargar PDF", pdf_b, "Informe_Ekos.pdf")
-        except: st.error("Error en informes.")
+            df_g = pd.read_csv(SHEET_URL)
+            st.bar_chart(df_g[df_g['tipo_operacion'].str.contains("Máquina", na=False)].groupby('nombre_maquina')['litros'].sum())
+        except: st.error("Error en gráficos.")
 
-# --- TAB 4: CONFIRMACIÓN PETROBRAS ---
-with tab4:
-    st.subheader("🔍 Conciliación Petrobras")
-    archivo_p = st.file_uploader("Subir Excel/CSV de Petrobras", type=["csv", "xlsx"])
-    if archivo_p:
-        try:
-            df_p = pd.read_csv(archivo_p) if archivo_p.name.endswith('.csv') else pd.read_excel(archivo_p)
-            c_f = st.selectbox("Columna Fecha:", df_p.columns)
-            c_l = st.selectbox("Columna Litros:", df_p.columns)
-            if st.button("🚀 Comparar"):
-                df_internal = pd.read_csv(SHEET_URL)
-                total_int = df_internal[df_internal['origen'].str.contains("Petrobras", na=False)]['litros'].sum()
-                total_ext = df_p[c_l].sum()
-                st.metric("Petrobras", f"{total_ext:.2f} L")
-                st.metric("Ekos", f"{total_int:.2f} L", delta=f"{total_int - total_ext:.2f} L")
-        except Exception as e: st.error(f"Error: {e}")
+# --- TAB 4: CONCILIACIÓN PETROBRAS (F, P, K, O) ---
+with tabs[3]:
+    if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_AUDITORIA:
+        st.subheader("🔍 Mapeo Petrobras (Columnas F, P, K, O)")
+        file_p = st.file_uploader("Subir Excel de Petrobras", type=["xlsx"])
+        if file_p:
+            try:
+                # F=5, K=10, O=14, P=15
+                df_p = pd.read_excel(file_p, usecols=[5, 10, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
+                df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
+                st.dataframe(df_p)
+                if st.button("🚀 SUBIR A LA NUBE"):
+                    for _, r in df_p.iterrows():
+                        p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Petrobras", "origen": "Surtidor", "chofer": "Factura", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
+                        requests.post(SCRIPT_URL, json=p)
+                    st.success("✅ Datos sincronizados.")
+            except Exception as e: st.error(f"Error: {e}")
