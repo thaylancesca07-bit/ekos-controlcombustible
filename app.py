@@ -4,7 +4,15 @@ from datetime import date, timedelta
 from fpdf import FPDF
 from streamlit_gsheets import GSheetsConnection
 
-# --- 1. CONFIGURACIÓN Y PARÁMETROS 🇵🇾 ---
+# --- 1. CONFIGURACIÓN E IDENTIDAD ---
+st.set_page_config(page_title="Ekos Forestal", layout="wide")
+
+# Inicialización de la Conexión (ESTO CORRIGE EL NAMEERROR)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error("Error al conectar con Google Sheets. Revisa los Secrets en Streamlit Cloud.")
+
 ACCESS_CODE = "1645"
 BARRILES = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
@@ -73,9 +81,8 @@ def generar_pdf(df):
     return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. INTERFAZ PRINCIPAL ---
-
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora en Paraguay </p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
@@ -85,7 +92,6 @@ with tab1:
     st.subheader("¡Buen día! Registremos la actividad de hoy 😊")
     operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
     
-    # Lógica dinámica para selección de destino
     if "Máquina" in operacion:
         sel = st.selectbox("Selecciona la Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
         cod_f = sel.split(" - ")[0]
@@ -122,7 +128,6 @@ with tab1:
                 df_actual = conn.read()
                 media, estado = 0.0, "N/A"
                 
-                # Cálculo de media y auditoría
                 if "Máquina" in operacion and not df_actual.empty:
                     last_reg = df_actual[df_actual['codigo_maquina'] == cod_f]
                     if not last_reg.empty:
@@ -143,57 +148,60 @@ with tab1:
                 updated_df = pd.concat([df_actual, new_row], ignore_index=True)
                 conn.update(data=updated_df)
                 st.balloons()
-                st.success(f"¡Excelente! Registro de {nom_f} guardado en la nube. 🇵🇾")
+                st.success(f"¡Excelente! Registro de {nom_f} guardado en la nube. 🚀")
             except Exception as e:
-                st.error("Error al conectar con la nube. Verifica los Secrets.")
+                st.error(f"Error al conectar con la nube: {e}")
 
 # --- TAB 2: AUDITORÍA Y STOCK ---
 with tab2:
     pwd1 = st.text_input("PIN de Seguridad", type="password", key="p1")
     if pwd1 == ACCESS_CODE:
-        df_audit = conn.read()
-        if not df_audit.empty and not df_audit.dropna(how='all').empty:
-            st.subheader("📦 Stock Actual de Barriles")
-            cols_b = st.columns(4)
-            for i, b in enumerate(BARRILES):
-                # Entradas: Surtidor -> Barril
-                entradas = df_audit[(df_audit['tipo_operacion'].str.contains("Barril")) & (df_audit['codigo_maquina'] == b)]['litros'].sum()
-                # Salidas: Barril -> Máquina
-                salidas = df_audit[(df_audit['origen'] == b)]['litros'].sum()
-                stock = entradas - salidas
-                cols_b[i].metric(b, f"{stock:.1f} L", f"Ingresos: {entradas}")
+        try:
+            df_audit = conn.read()
+            if not df_audit.empty and not df_audit.dropna(how='all').empty:
+                st.subheader("📦 Stock Actual de Barriles")
+                cols_b = st.columns(4)
+                for i, b in enumerate(BARRILES):
+                    entradas = df_audit[(df_audit['tipo_operacion'].str.contains("Barril")) & (df_audit['codigo_maquina'] == b)]['litros'].sum()
+                    salidas = df_audit[(df_audit['origen'] == b)]['litros'].sum()
+                    stock = entradas - salidas
+                    cols_b[i].metric(b, f"{stock:.1f} L", f"Ingresos: {entradas}")
 
-            st.markdown("---")
-            st.subheader("📋 Historial de Movimientos")
-            d_ini = st.date_input("Ver desde el día 26", date.today() - timedelta(days=30))
-            df_filtro = df_audit[df_audit['fecha'] >= str(d_ini)]
-            st.dataframe(df_filtro, use_container_width=True)
-            
-            csv = df_filtro.to_csv(index=False, sep=';', encoding='latin-1').encode('latin-1')
-            st.download_button("📥 Descargar Excel para Auditoría", csv, "auditoria_ekos.csv")
-        else:
-            st.info("Aún no hay datos registrados en la planilla.")
+                st.markdown("---")
+                st.subheader("📋 Historial de Movimientos")
+                d_ini = st.date_input("Ver desde la fecha:", date.today() - timedelta(days=30))
+                df_filtro = df_audit[df_audit['fecha'] >= str(d_ini)]
+                st.dataframe(df_filtro, use_container_width=True)
+                
+                csv = df_filtro.to_csv(index=False, sep=';', encoding='latin-1').encode('latin-1')
+                st.download_button("📥 Descargar Excel para Auditoría", csv, "auditoria_ekos.csv")
+            else:
+                st.info("Aún no hay datos registrados en la planilla.")
+        except Exception as e:
+            st.error(f"Error al leer auditoría: {e}")
     elif pwd1: st.error("Acceso denegado 🔒")
 
 # --- TAB 3: INFORME EJECUTIVO ---
 with tab3:
     pwd2 = st.text_input("PIN de Gerencia", type="password", key="p2")
     if pwd2 == ACCESS_CODE:
-        df_exec = conn.read()
-        if not df_exec.empty:
-            resumo = df_exec[df_exec['tipo_operacion'].str.contains("Máquina")].groupby('codigo_maquina').agg({
-                'nombre_maquina': 'first',
-                'fecha': 'max',
-                'litros': 'sum',
-                'estado_consumo': lambda x: x.iloc[-1]
-            }).reset_index()
-            resumo.columns = ['Código', 'Nombre', 'Ultima Carga', 'Total Litros', 'Estado']
-            
-            st.subheader("📊 Consumo Total por Máquina")
-            st.bar_chart(resumo.set_index('Nombre')['Total Litros'])
-            
-            st.table(resumo)
-            pdf_b = generar_pdf(resumo)
-            st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
+        try:
+            df_exec = conn.read()
+            if not df_exec.empty:
+                resumo = df_exec[df_exec['tipo_operacion'].str.contains("Máquina")].groupby('codigo_maquina').agg({
+                    'nombre_maquina': 'first',
+                    'fecha': 'max',
+                    'litros': 'sum',
+                    'estado_consumo': lambda x: x.iloc[-1]
+                }).reset_index()
+                resumo.columns = ['Código', 'Nombre', 'Ultima Carga', 'Total Litros', 'Estado']
+                
+                st.subheader("📊 Consumo Total por Máquina")
+                st.bar_chart(resumo.set_index('Nombre')['Total Litros'])
+                
+                st.table(resumo)
+                pdf_b = generar_pdf(resumo)
+                st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
+        except Exception as e:
+            st.error(f"Error al generar informe: {e}")
     elif pwd2: st.error("Acceso denegado 🔒")
-
