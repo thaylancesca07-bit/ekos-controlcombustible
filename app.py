@@ -1,24 +1,33 @@
 import streamlit as st
 import pandas as pd
 import requests
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from fpdf import FPDF
 
-# --- 1. CONFIGURAÇÃO E IDENTIDADE 🇵🇾 ---
+# --- 1. CONFIGURACIÓN E IDENTIDAD 🇵🇾 ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# SEU LINK DE IMPLANTAÇÃO (JÁ INSERIDO)
+# ENLACES DE CONEXIÓN
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMiQPn1c5dG_bB0GVS5LSeKqMal2R3YsBtpfTGM1kM_JFMalrzahyEKgHcUG5cnyW9/exec"
 
-# --- ATENÇÃO: COLOQUE O ID DA SUA PLANILHA AQUI PARA A LEITURA FUNCIONAR ---
-# O ID é aquele código longo que fica no link da sua planilha no navegador
+# ID DE TU PLANILLA (Mantenemos el que pasaste)
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E" 
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E/export?format=csv"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
-ACCESS_CODE = "1645"
+# --- CONFIGURACIÓN DE SEGURIDAD ---
+ACCESS_CODE_AUDITORIA = "1645"
+
+# DICCIONARIO DE ENCARGADOS Y SUS CONTRASEÑAS PERSONALES
+ENCARGADOS_PWD = {
+    "Juan Perez": "jp2026",
+    "Diego Garcia": "dg2026",
+    "Jonatan Silva": "js2026",
+    "Cesar Benitez": "cb2026",
+    "Admin Ekos": "1645"
+}
+
 BARRILES = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
-# Cadastro da Flota com Unidades Dinâmicas
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas"},
     "JD-01": {"nombre": "John Deere", "unidad": "Horas"},
@@ -46,7 +55,7 @@ FLOTA = {
     "S-07": {"nombre": "Scania R380", "unidad": "Horas"},
 }
 
-# --- 2. GERADOR DE PDF ---
+# --- 2. GENERADOR DE PDF ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
@@ -59,7 +68,7 @@ def generar_pdf(df):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font('Arial', 'B', 8)
-    cols = ['Codigo', 'Nombre', 'Ult. Carga', 'Litros', 'Estado']
+    cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Estado']
     w = [25, 60, 30, 30, 40]
     for i, col in enumerate(cols): pdf.cell(w[i], 10, col, 1)
     pdf.ln()
@@ -80,100 +89,113 @@ st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
 
-# --- TAB 1: REGISTRO ---
+# --- TAB 1: REGISTRO CON CONTRASEÑA INDIVIDUAL ---
 with tab1:
-    st.subheader("¡Buen día! Registremos la actividad de hoy 😊")
+    st.subheader("🔑 Validación de Encargado")
+    c_auth1, c_auth2 = st.columns(2)
+    with c_auth1:
+        encargado_sel = st.selectbox("Seleccione su Nombre (Encargado):", options=list(ENCARGADOS_PWD.keys()))
+    with c_auth2:
+        pwd_input = st.text_input("Ingrese su Contraseña Personal:", type="password")
+
+    st.markdown("---")
     operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
     
     if "Máquina" in operacion:
-        sel = st.selectbox("Selecciona la Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
-        cod_f = sel.split(" - ")[0]
+        sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
+        cod_f = sel_m.split(" - ")[0]
         nom_f = FLOTA[cod_f]['nombre']
-        unidad_txt = FLOTA[cod_f]['unidad']
+        unidad = FLOTA[cod_f]['unidad']
         origen = st.selectbox("¿De dónde sale el combustible? ⛽", BARRILES + ["Surtidor Petrobras", "Surtidor Shell"])
     else:
         cod_f = st.selectbox("¿Qué barril vamos a llenar? 📦", options=BARRILES)
         nom_f = cod_f
-        unidad_txt = "Litros"
+        unidad = "Litros"
         origen = st.selectbox("¿Desde qué surtidor viene? ⛽", ["Surtidor Petrobras", "Surtidor Shell"])
 
     with st.form("form_final_ekos", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             chofer = st.text_input("Nombre del Chofer / Operador 🧑‍🌾")
-            resp_cargo = st.text_input("Responsable del Cargo / Encargado 👤")
             fecha = st.date_input("Fecha 📅", date.today())
+            actividad = st.text_input("Actividad 🔨")
         with col2:
-            actividad = st.text_input("Actividad a desarrollar 🔨")
             litros = st.number_input("Cantidad de Litros 💧", min_value=0.0, step=0.1)
             if "Máquina" in operacion:
-                lectura = st.number_input(f"Lectura actual en {unidad_txt} 🔢", min_value=0.0)
+                lectura = st.number_input(f"Lectura actual en {unidad} 🔢", min_value=0.0)
             else:
                 lectura = 0.0
         
         btn = st.form_submit_button("✅ GUARDAR REGISTRO")
 
     if btn:
-        if not chofer or not resp_cargo or not actividad:
-            st.warning("Por favor completa todos los campos. 😉")
+        if pwd_input != ENCARGADOS_PWD[encargado_sel]:
+            st.error("❌ Contraseña incorrecta. Acceso denegado para guardar.")
+        elif not chofer or not actividad:
+            st.warning("⚠️ Completa el nombre del chofer y la actividad.")
         else:
             payload = {
                 "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f,
                 "nombre_maquina": nom_f, "origen": origen, "chofer": chofer,
-                "responsable_cargo": resp_cargo, "actividad": actividad,
+                "responsable_cargo": encargado_sel, "actividad": actividad,
                 "lectura_actual": lectura, "litros": litros, "media": 0.0, "estado_consumo": "N/A"
             }
             try:
                 r = requests.post(SCRIPT_URL, json=payload)
                 if r.status_code == 200:
                     st.balloons()
-                    st.success(f"¡Excelente! Registro de {nom_f} enviado a la nube. 🚀")
-                else:
-                    st.error("Error al enviar datos. Verifique la conexión.")
-            except:
-                st.error("Falla crítica de conexión con el Script de Google.")
+                    st.success(f"¡Excelente {encargado_sel}! Registro guardado en la nube. 🚀")
+                else: st.error("Error al enviar.")
+            except: st.error("Falla de conexión.")
 
-# --- TAB 2: AUDITORÍA Y STOCK ---
+# --- TAB 2: AUDITORÍA CON FILTRO POR MES ---
 with tab2:
-    pwd1 = st.text_input("PIN de Seguridad", type="password", key="p1")
-    if pwd1 == ACCESS_CODE:
+    if st.text_input("PIN Maestro de Auditoría", type="password", key="p_aud") == ACCESS_CODE_AUDITORIA:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                st.subheader("📦 Stock Actual de Barriles")
-                cols_b = st.columns(4)
+                # Convertir fecha para filtrar
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                
+                st.subheader("📅 Filtro de Periodo")
+                cf1, cf2 = st.columns(2)
+                with cf1:
+                    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+                    m_sel = st.selectbox("Mes:", options=range(1, 13), format_func=lambda x: meses[x-1], index=date.today().month - 1)
+                with cf2:
+                    a_sel = st.selectbox("Año:", options=[2024, 2025, 2026], index=2)
+
+                # Aplicar filtro
+                df_mes = df[(df['fecha'].dt.month == m_sel) & (df['fecha'].dt.year == a_sel)]
+
+                st.subheader("📦 Stock Actual Real (Todo el historial)")
+                cb = st.columns(4)
                 for i, b in enumerate(BARRILES):
-                    entradas = df[(df['tipo_operacion'].str.contains("Barril")) & (df['codigo_maquina'] == b)]['litros'].sum()
-                    salidas = df[(df['origen'] == b)]['litros'].sum()
-                    stock_real = entradas - salidas
-                    cols_b[i].metric(b, f"{stock_real:.1f} L", f"Entradas: {entradas}")
+                    ent = df[(df['codigo_maquina'] == b)]['litros'].sum()
+                    sal = df[(df['origen'] == b)]['litros'].sum()
+                    cb[i].metric(b, f"{ent - sal:.1f} L")
 
                 st.markdown("---")
-                st.subheader("📋 Historial de Movimientos")
-                st.dataframe(df, use_container_width=True)
-                csv = df.to_csv(index=False, sep=';', encoding='latin-1').encode('latin-1')
-                st.download_button("📥 Descargar Excel", csv, "auditoria_ekos.csv")
-            else:
-                st.info("Aún no hay datos registrados.")
-        except:
-            st.error("Error al leer la planilha. Asegúrate de que 'Cualquier persona con el link pueda leer'.")
-    elif pwd1: st.error("Acceso denegado 🔒")
+                st.subheader(f"📋 Movimientos de {meses[m_sel-1]} {a_sel}")
+                st.dataframe(df_mes, use_container_width=True)
+                
+                csv = df_mes.to_csv(index=False, sep=';').encode('latin-1')
+                st.download_button(f"📥 Descargar Excel {meses[m_sel-1]}", csv, f"auditoria_{m_sel}.csv")
+            else: st.info("Planilla sin datos.")
+        except: st.error("Error de lectura. Verifica que la planilla sea pública.")
+    elif st.session_state.get('p_aud'): st.error("PIN Incorrecto")
 
 # --- TAB 3: INFORME EJECUTIVO ---
 with tab3:
-    pwd2 = st.text_input("PIN de Gerencia", type="password", key="p2")
-    if pwd2 == ACCESS_CODE:
+    if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_AUDITORIA:
         try:
             df_full = pd.read_csv(SHEET_URL)
             if not df_full.empty:
                 df_maquinas = df_full[df_full['tipo_operacion'].str.contains("Máquina")]
-                st.subheader("📊 Resumen de Consumo por Equipo")
+                st.subheader("📊 Consumo por Equipo (Total)")
                 resumo = df_maquinas.groupby('nombre_maquina')['litros'].sum()
                 st.bar_chart(resumo)
                 
                 pdf_b = generar_pdf(df_maquinas)
                 st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-        except:
-            st.error("Error al generar informes.")
-
-
+        except: st.error("Error al generar informes.")
