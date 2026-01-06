@@ -10,7 +10,7 @@ st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 # ENLACES DE CONEXIÓN
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMiQPn1c5dG_bB0GVS5LSeKqMal2R3YsBtpfTGM1kM_JFMalrzahyEKgHcUG5cnyW9/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E" 
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E/export?format=csv"
 
 ACCESS_CODE_MAESTRO = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
@@ -206,4 +206,5 @@ with tab4:
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Datos de Petrobras sincronizados exitosamente.")
             except Exception as e: st.error(f"Error en la lectura del archivo: {e}")
+
 
