@@ -4,7 +4,7 @@ import requests
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
 
-# --- 1. CONFIGURACIÓN E IDENTIDAD 🇵🇾 ---
+# --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
 # URL del Script de Google (Pestaña Registro)
@@ -63,13 +63,40 @@ FLOTA = {
     "O-01": {"nombre": "Otros", "unidad": "Horas"}
 }
 
+# --- 2. GENERADOR DE PDF ---
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 14)
+        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS 🇵🇾', 0, 1, 'C')
+        self.set_font('Arial', 'I', 10)
+        self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza - Canindeyu', 0, 1, 'C')
+        self.ln(5)
+
+def generar_pdf(df):
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 8)
+    cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Combustible']
+    w = [25, 50, 30, 30, 45]
+    for i, col in enumerate(cols): pdf.cell(w[i], 10, col, 1)
+    pdf.ln()
+    pdf.set_font('Arial', '', 8)
+    for _, row in df.iterrows():
+        pdf.cell(w[0], 10, str(row['codigo_maquina']), 1)
+        pdf.cell(w[1], 10, str(row['nombre_maquina']), 1)
+        pdf.cell(w[2], 10, str(row['fecha']), 1)
+        pdf.cell(w[3], 10, f"{float(row['litros']):.1f}", 1)
+        pdf.cell(w[4], 10, str(row.get('tipo_combustible', 'N/A')), 1)
+        pdf.ln()
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
-st.markdown("---")
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos"])
 
-# --- TAB 1: REGISTRO PERSONAL ---
+# --- TAB 1: REGISTRO ---
 with tab1:
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -77,8 +104,7 @@ with tab1:
     with c_auth2: pwd_input = st.text_input("Contraseña:", type="password")
 
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
-        st.markdown("---")
-        operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+        operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
         
         if encargado_sel == "Auditoria":
             op_barril, op_origen = BARRILES_LISTA, BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
@@ -89,32 +115,89 @@ with tab1:
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
-                sel_m = st.selectbox("Selecciona la Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
+                sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
                 cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
-                origen = st.selectbox("¿De dónde sale el combustible? ⛽", op_origen)
+                origen = st.selectbox("Origen:", op_origen)
             else:
-                cod_f = st.selectbox("¿Qué barril vamos a llenar? 📦", options=op_barril)
-                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("¿Desde qué surtidor viene? ⛽", ["Surtidor Petrobras", "Surtidor Shell"])
+                cod_f = st.selectbox("Barril:", options=op_barril)
+                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", ["Surtidor Petrobras", "Surtidor Shell"])
         
-        with c_f2: tipo_comb = st.selectbox("Tipo de Combustible ⛽:", TIPOS_COMBUSTIBLE)
+        with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
 
         with st.form("form_final_ekos", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                chofer, fecha, act = st.text_input("Nombre del Chofer / Operador 🧑‍🌾"), st.date_input("Fecha 📅", date.today()), st.text_input("Actividad a desarrollar 🔨")
+                chofer, fecha, act = st.text_input("Chofer"), st.date_input("Fecha", date.today()), st.text_input("Actividad")
             with col2:
-                lts = st.number_input("Cantidad de Litros 💧", min_value=0.0, step=0.1)
-                lect = st.number_input(f"Lectura actual en {unidad} 🔢", min_value=0.0) if "Máquina" in operacion else 0.0
+                lts = st.number_input("Litros", min_value=0.0, step=0.1)
+                lect = st.number_input(f"Lectura ({unidad})", min_value=0.0) if "Máquina" in operacion else 0.0
             
-            if st.form_submit_button("✅ GUARDAR REGISTRO"):
-                if not chofer or not act: st.warning("⚠️ Por favor completa los campos.")
+            submit_registro = st.form_submit_button("✅ GUARDAR REGISTRO")
+
+            if submit_registro:
+                if not chofer or not act:
+                    st.warning("⚠️ Completa los campos.")
                 else:
-                    payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb}
-                    try:
-                        r = requests.post(SCRIPT_URL, json=payload)
-                        if r.status_code == 200: st.balloons(); st.success(f"¡Excelente {encargado_sel}! Registro guardado exitosamente. 🚀")
-                        else: st.error("Error al guardar. Verifica los permisos del Script.")
-                    except: st.error("Falla de conexión con la nube.")
+                    error_lectura = False
+                    media_calc = 0.0
+                    
+                    # ----------------------------------------------------
+                    # VALIDACIÓN DE LECTURA Y CÁLCULO DE PROMEDIO
+                    # ----------------------------------------------------
+                    if "Máquina" in operacion and lect > 0:
+                        try:
+                            # 1. Leer planilla para buscar historial
+                            df_hist = pd.read_csv(SHEET_URL)
+                            # 2. Filtrar solo esta máquina
+                            hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
+                            
+                            if not hist_maq.empty:
+                                # Obtener la máxima lectura registrada hasta hoy
+                                ult_lectura = hist_maq['lectura_actual'].max()
+                                
+                                # VALIDACIÓN: Si la nueva lectura es menor, BLOQUEAR.
+                                if lect < ult_lectura:
+                                    st.error(f"⛔ ERROR CRÍTICO: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}). No se puede guardar.")
+                                    error_lectura = True
+                                else:
+                                    # CÁLCULO DE PROMEDIO (Diferencia / Litros)
+                                    recorrido = lect - ult_lectura
+                                    if lts > 0:
+                                        media_calc = recorrido / lts
+                            else:
+                                # Primer registro de la máquina, media es 0
+                                media_calc = 0.0
+                        except Exception as e:
+                            # Si falla la lectura de la base (ej. vacía), permitimos guardar con media 0
+                            # pero avisamos (opcional, aquí lo dejamos pasar para no trabar si es el primer uso)
+                            media_calc = 0.0
+                    # ----------------------------------------------------
+
+                    if not error_lectura:
+                        payload = {
+                            "fecha": str(fecha), 
+                            "tipo_operacion": operacion, 
+                            "codigo_maquina": cod_f, 
+                            "nombre_maquina": nom_f, 
+                            "origen": origen, 
+                            "chofer": chofer, 
+                            "responsable_cargo": encargado_sel, 
+                            "actividad": act, 
+                            "lectura_actual": lect, 
+                            "litros": lts, 
+                            "tipo_combustible": tipo_comb,
+                            "media": media_calc # <-- AQUÍ SE ENVÍA EL PROMEDIO CALCULADO
+                        }
+                        try:
+                            r = requests.post(SCRIPT_URL, json=payload)
+                            if r.status_code == 200: 
+                                st.balloons()
+                                st.success(f"¡Guardado! Promedio calculado: {media_calc:.2f}")
+                            else: 
+                                st.error("Error en permisos del Script.")
+                        except: 
+                            st.error("Error de conexión.")
+                            
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
 # --- TAB 2: AUDITORÍA & STOCK ---
@@ -136,12 +219,16 @@ with tab2:
 
                     st.markdown("---")
                     st.subheader("📋 Historial Completo")
-                    st.dataframe(df.sort_values(by='fecha', ascending=False), use_container_width=True)
+                    # Mostrar columna Media también
+                    cols_to_show = ['fecha', 'nombre_maquina', 'litros', 'lectura_actual', 'media', 'tipo_combustible', 'responsable_cargo']
+                    # Filtramos columnas que existen para evitar error si 'media' aun no existe en viejos registros
+                    cols_final = [c for c in cols_to_show if c in df.columns]
+                    st.dataframe(df[cols_final].sort_values(by='fecha', ascending=False), use_container_width=True)
                 else:
-                    st.warning("⚠️ La columna 'fecha' no fue encontrada. Asegúrate de que la primera fila de tu planilla tenga los encabezados correctos.")
-            else: st.info("Planilla vacía o sin datos registrados.")
+                    st.warning("⚠️ Faltan encabezados en la planilla.")
+            else: st.info("Planilla vacía.")
         except Exception as e: 
-            st.error(f"Error al leer base de datos. Asegúrate de que la planilla sea pública. Detalle: {e}")
+            st.error(f"Error de base de datos: {e}")
 
 # --- TAB 3: INFORME GRAFICO ---
 with tab3:
@@ -158,6 +245,9 @@ with tab3:
                     st.subheader("⛽ Consumo por Tipo de Combustible")
                     comb_resumen = df_maq_only.groupby('tipo_combustible')['litros'].sum()
                     st.bar_chart(comb_resumen)
+                    
+                    pdf_b = generar_pdf(df_maq_only)
+                    st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
                 else:
                     st.info("No hay datos de máquinas para graficar.")
             else: st.info("No hay datos registrados aún.")
@@ -168,10 +258,9 @@ with tab3:
 with tab4:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Lado a Lado: Ekos vs Petrobras")
-        archivo_p = st.file_uploader("Alzar planilla de Petrobras (Excel)", type=["xlsx"])
+        archivo_p = st.file_uploader("Subir Excel Petrobras", type=["xlsx"])
         if archivo_p:
             try:
-                # F=5, P=15, K=10, O=14 (Basado en 0-index)
                 df_p = pd.read_excel(archivo_p, usecols=[5, 10, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
                 df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 st.dataframe(df_p.head())
@@ -179,5 +268,5 @@ with tab4:
                     for _, r in df_p.iterrows():
                         p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Factura", "origen": "Surtidor", "chofer": "N/A", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
                         requests.post(SCRIPT_URL, json=p)
-                    st.success("✅ Datos sincronizados correctamente.")
-            except Exception as e: st.error(f"Error de archivo: {e}")
+                    st.success("✅ Sincronizado.")
+            except Exception as e: st.error(f"Error: {e}")
