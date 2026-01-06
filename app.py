@@ -70,4 +70,38 @@ with tab1:
             st.balloons()
             st.success("¡Datos guardados en la nube! 🚀")
 
-# (Las pestañas de Auditoría e Informe se mantienen igual, leyendo de 'conn.read()')
+# --- TAB 2: AUDITORIA ---
+with tab2:
+    pwd1 = st.text_input("PIN de Seguridad", type="password", key="p1")
+    if pwd1 == ACCESS_CODE:
+        f1, f2 = st.columns(2)
+        with f1: d1 = st.date_input("Desde", date.today() - timedelta(days=30))
+        with f2: d2 = st.date_input("Hasta", date.today())
+        
+        df_csv = safe_read("SELECT * FROM registros WHERE fecha BETWEEN ? AND ?", (str(d1), str(d2)))
+        if not df_csv.empty:
+            st.write("### Datos para comparar con Rastreos")
+            st.dataframe(df_csv)
+            csv = df_csv.to_csv(index=False, sep=';').encode('latin-1')
+            st.download_button("📥 Descargar Planilla para Excel", csv, f"auditoria_ekos_{d1}_a_{d2}.csv")
+    elif pwd1: st.error("Acceso denegado 🔒")
+# --- TAB 3: INFORME EJECUTIVO ---
+with tab3:
+    pwd2 = st.text_input("PIN de Gerencia", type="password", key="p2")
+    if pwd2 == ACCESS_CODE:
+        df_raw = safe_read("SELECT * FROM registros")
+        if not df_raw.empty:
+            res_df = df_raw[df_raw['tipo_operacion'].str.contains("Máquina")].groupby('codigo_maquina').agg({
+                'nombre_maquina': 'first',
+                'fecha': 'max',
+                'litros': 'sum',
+                'estado_consumo': lambda x: x.iloc[-1]
+            }).reset_index()
+            res_df.columns = ['Código', 'Nombre', 'Ultima Carga', 'Total Litros', 'Estado']
+            
+            st.subheader("📈 Resumen de Flota")
+            st.table(res_df)
+            
+            pdf_b = generar_pdf(res_df)
+            st.download_button("📄 Descargar Reporte en PDF", pdf_b, "Reporte_Gerencial_Ekos.pdf")
+    elif pwd2: st.error("Acceso denegado 🔒") 
