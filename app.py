@@ -110,7 +110,7 @@ with tab1:
                     payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb}
                     try:
                         r = requests.post(SCRIPT_URL, json=payload)
-                        if r.status_code == 200: st.balloons(); st.success("¡Guardado!")
+                        if r.status_code == 200: st.balloons(); st.success(f"¡Excelente {encargado_sel}! Registro guardado exitosamente. 🚀")
                         else: st.error("Error en permisos del Script.")
                     except: st.error("Error de conexión.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
@@ -176,3 +176,4 @@ with tab4:
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
             except Exception as e: st.error(f"Error: {e}")
+
