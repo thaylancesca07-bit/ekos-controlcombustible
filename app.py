@@ -32,7 +32,7 @@ VEICULOS_CADASTRO = {
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS', 0, 1, 'C')
+        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS FORESTAL', 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
         self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza - Canindeyu', 0, 1, 'C')
         self.ln(5)
@@ -61,7 +61,7 @@ st.set_page_config(page_title="Combustible Control Ekos", layout="wide")
 # Conexión a la Nube (Google Sheets)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-st.title("⛽ Combustible Control Ekos")
+st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora - Nueva Esperanza - Canindeyu</p>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -185,4 +185,5 @@ with tab3:
             pdf_file = generar_pdf(resumo)
             st.download_button("📄 Descargar Reporte PDF", pdf_file, "Informe_Ejecutivo_Ekos.pdf")
     elif pwd2: st.error("Contraseña incorrecta 🔒")
+
 
