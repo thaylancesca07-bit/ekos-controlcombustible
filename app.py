@@ -192,7 +192,7 @@ with tab1:
                             r = requests.post(SCRIPT_URL, json=payload)
                             if r.status_code == 200: 
                                 st.balloons()
-                                st.success(f"¡Guardado! Promedio calculado: {media_calc:.2f}")
+                                st.success(f"¡Guardado, Excelente Trabajo! Promedio calculado: {media_calc:.2f}")
                             else: 
                                 st.error("Error en permisos del Script.")
                         except: 
@@ -270,3 +270,4 @@ with tab4:
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
             except Exception as e: st.error(f"Error: {e}")
+
