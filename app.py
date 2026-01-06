@@ -54,6 +54,7 @@ FLOTA = {
     "S-03": {"nombre": "Scania 113H", "unidad": "KM"},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas"},
     "S-07": {"nombre": "Scania R380", "unidad": "Horas"},
+    "O-01": {"nombre": "Otros¨, "unidad": "Horas¨}, 
 }
 
 # --- 2. GENERADOR DE PDF ---
@@ -202,4 +203,5 @@ with tab3:
                 pdf_b = generar_pdf(df_maq)
                 st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
         except: st.error("Error en informes.")
+
 
