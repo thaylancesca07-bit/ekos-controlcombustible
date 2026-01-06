@@ -57,7 +57,7 @@ FLOTA = {
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS 🇵🇾', 0, 1, 'C')
+        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS ', 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
         self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza - Canindeyu', 0, 1, 'C')
         self.ln(5)
@@ -205,3 +205,4 @@ with tab3:
         except Exception as e:
             st.error(f"Error al generar informe: {e}")
     elif pwd2: st.error("Acceso denegado 🔒")
+
