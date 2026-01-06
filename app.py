@@ -62,7 +62,7 @@ st.set_page_config(page_title="Combustible Control Ekos", layout="wide")
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("⛽ Combustible Control Ekos")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>powered by Excelencia Consultora - Nueva Esperanza - Canindeyu</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora - Nueva Esperanza - Canindeyu</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
@@ -185,3 +185,4 @@ with tab3:
             pdf_file = generar_pdf(resumo)
             st.download_button("📄 Descargar Reporte PDF", pdf_file, "Informe_Ejecutivo_Ekos.pdf")
     elif pwd2: st.error("Contraseña incorrecta 🔒")
+
