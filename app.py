@@ -17,16 +17,17 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=cs
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 ACCESS_CODE_AUDITORIA = "1645"
 
-# DICCIONARIO DE ENCARGADOS Y SUS CONTRASEÑAS PERSONALES
-ENCARGADOS_PWD = {
-    "Juan Perez": "jp2026",
-    "Diego Garcia": "dg2026",
-    "Jonatan Silva": "js2026",
-    "Cesar Benitez": "cb2026",
-    "Admin Ekos": "1645"
+# MAPEO DE ENCARGADOS -> CONTRASEÑA Y SU BARRIL ASIGNADO
+# Aquí definimos quién cuida cada barril
+ENCARGADOS_DATA = {
+    "Juan Perez": {"pwd": "jp2026", "barril": "Barril Juan"},
+    "Diego Garcia": {"pwd": "dg2026", "barril": "Barril Diego"},
+    "Jonatan Silva": {"pwd": "js2026", "barril": "Barril Jonatan"},
+    "Cesar Benitez": {"pwd": "cb2026", "barril": "Barril Cesar"},
+    "Admin Ekos": {"pwd": "1645", "barril": "Todos"}
 }
 
-BARRILES = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
+BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas"},
@@ -61,7 +62,7 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS 🇵🇾', 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza - Canindeyu', 0, 1, 'C')
+        self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza', 0, 1, 'C')
         self.ln(5)
 
 def generar_pdf(df):
@@ -89,113 +90,115 @@ st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
 
-# --- TAB 1: REGISTRO CON CONTRASEÑA INDIVIDUAL ---
+# --- TAB 1: REGISTRO RESTRINGIDO ---
 with tab1:
-    st.subheader("🔑 Validación de Encargado")
+    st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
     with c_auth1:
-        encargado_sel = st.selectbox("Seleccione su Nombre (Encargado):", options=list(ENCARGADOS_PWD.keys()))
+        encargado_sel = st.selectbox("Encargado:", options=list(ENCARGADOS_DATA.keys()))
     with c_auth2:
-        pwd_input = st.text_input("Ingrese su Contraseña Personal:", type="password")
+        pwd_input = st.text_input("Contraseña:", type="password")
 
     st.markdown("---")
-    operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
     
-    if "Máquina" in operacion:
-        sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
-        cod_f = sel_m.split(" - ")[0]
-        nom_f = FLOTA[cod_f]['nombre']
-        unidad = FLOTA[cod_f]['unidad']
-        origen = st.selectbox("¿De dónde sale el combustible? ⛽", BARRILES + ["Surtidor Petrobras", "Surtidor Shell"])
-    else:
-        cod_f = st.selectbox("¿Qué barril vamos a llenar? 📦", options=BARRILES)
-        nom_f = cod_f
-        unidad = "Litros"
-        origen = st.selectbox("¿Desde qué surtidor viene? ⛽", ["Surtidor Petrobras", "Surtidor Shell"])
-
-    with st.form("form_final_ekos", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            chofer = st.text_input("Nombre del Chofer / Operador 🧑‍🌾")
-            fecha = st.date_input("Fecha 📅", date.today())
-            actividad = st.text_input("Actividad 🔨")
-        with col2:
-            litros = st.number_input("Cantidad de Litros 💧", min_value=0.0, step=0.1)
-            if "Máquina" in operacion:
-                lectura = st.number_input(f"Lectura actual en {unidad} 🔢", min_value=0.0)
-            else:
-                lectura = 0.0
+    # Solo mostrar el formulario si la contraseña es correcta (para filtrar opciones)
+    if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
+        operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
         
-        btn = st.form_submit_button("✅ GUARDAR REGISTRO")
-
-    if btn:
-        if pwd_input != ENCARGADOS_PWD[encargado_sel]:
-            st.error("❌ Contraseña incorrecta. Acceso denegado para guardar.")
-        elif not chofer or not actividad:
-            st.warning("⚠️ Completa el nombre del chofer y la actividad.")
+        # FILTRO DE ORIGEN SEGÚN EL ENCARGADO
+        if encargado_sel == "Admin Ekos":
+            opciones_origen = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
+            opciones_barril_destino = BARRILES_LISTA
         else:
-            payload = {
-                "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f,
-                "nombre_maquina": nom_f, "origen": origen, "chofer": chofer,
-                "responsable_cargo": encargado_sel, "actividad": actividad,
-                "lectura_actual": lectura, "litros": litros, "media": 0.0, "estado_consumo": "N/A"
-            }
-            try:
-                r = requests.post(SCRIPT_URL, json=payload)
-                if r.status_code == 200:
-                    st.balloons()
-                    st.success(f"¡Excelente {encargado_sel}! Registro guardado en la nube. 🚀")
-                else: st.error("Error al enviar.")
-            except: st.error("Falla de conexión.")
+            mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
+            opciones_origen = [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
+            opciones_barril_destino = [mi_barril]
 
-# --- TAB 2: AUDITORÍA CON FILTRO POR MES ---
+        if "Máquina" in operacion:
+            sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
+            cod_f = sel_m.split(" - ")[0]
+            nom_f = FLOTA[cod_f]['nombre']
+            unidad = FLOTA[cod_f]['unidad']
+            origen = st.selectbox("¿De dónde sale el combustible? ⛽", opciones_origen)
+        else:
+            cod_f = st.selectbox("¿Qué barril vamos a llenar? 📦", options=opciones_barril_destino)
+            nom_f = cod_f
+            unidad = "Litros"
+            origen = st.selectbox("¿Desde qué surtidor viene? ⛽", ["Surtidor Petrobras", "Surtidor Shell"])
+
+        with st.form("form_ekos_v15", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                chofer = st.text_input("Nombre del Chofer / Operador 🧑‍🌾")
+                fecha = st.date_input("Fecha 📅", date.today())
+                actividad = st.text_input("Actividad 🔨")
+            with col2:
+                litros = st.number_input("Cantidad de Litros 💧", min_value=0.0, step=0.1)
+                lectura = st.number_input(f"Lectura actual en {unidad} 🔢", min_value=0.0) if "Máquina" in operacion else 0.0
+            
+            btn = st.form_submit_button("✅ GUARDAR REGISTRO")
+
+        if btn:
+            if not chofer or not actividad:
+                st.warning("⚠️ Completa chofer y actividad.")
+            else:
+                payload = {
+                    "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f,
+                    "nombre_maquina": nom_f, "origen": origen, "chofer": chofer,
+                    "responsable_cargo": encargado_sel, "actividad": actividad,
+                    "lectura_actual": lectura, "litros": litros, "media": 0.0, "estado_consumo": "N/A"
+                }
+                try:
+                    r = requests.post(SCRIPT_URL, json=payload)
+                    if r.status_code == 200:
+                        st.balloons()
+                        st.success(f"¡Excelente {encargado_sel}! Datos guardados. 🚀")
+                    else: st.error("Error al enviar.")
+                except: st.error("Falla de conexión.")
+    elif pwd_input:
+        st.error("❌ Contraseña incorrecta para este encargado.")
+
+# --- TAB 2: AUDITORÍA CON FILTRO ---
 with tab2:
-    if st.text_input("PIN Maestro de Auditoría", type="password", key="p_aud") == ACCESS_CODE_AUDITORIA:
+    if st.text_input("PIN Maestro Auditoría", type="password", key="p_aud") == ACCESS_CODE_AUDITORIA:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                # Convertir fecha para filtrar
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
-                st.subheader("📅 Filtro de Periodo")
+                st.subheader("📅 Historial por Mes")
                 cf1, cf2 = st.columns(2)
                 with cf1:
                     meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
                     m_sel = st.selectbox("Mes:", options=range(1, 13), format_func=lambda x: meses[x-1], index=date.today().month - 1)
                 with cf2:
-                    a_sel = st.selectbox("Año:", options=[2024, 2025, 2026], index=2)
+                    a_sel = st.selectbox("Año:", options=[2025, 2026], index=1)
 
-                # Aplicar filtro
                 df_mes = df[(df['fecha'].dt.month == m_sel) & (df['fecha'].dt.year == a_sel)]
 
-                st.subheader("📦 Stock Actual Real (Todo el historial)")
+                st.subheader("📦 Stock Actual Real")
                 cb = st.columns(4)
-                for i, b in enumerate(BARRILES):
+                for i, b in enumerate(BARRILES_LISTA):
                     ent = df[(df['codigo_maquina'] == b)]['litros'].sum()
                     sal = df[(df['origen'] == b)]['litros'].sum()
                     cb[i].metric(b, f"{ent - sal:.1f} L")
 
                 st.markdown("---")
-                st.subheader(f"📋 Movimientos de {meses[m_sel-1]} {a_sel}")
                 st.dataframe(df_mes, use_container_width=True)
-                
                 csv = df_mes.to_csv(index=False, sep=';').encode('latin-1')
                 st.download_button(f"📥 Descargar Excel {meses[m_sel-1]}", csv, f"auditoria_{m_sel}.csv")
-            else: st.info("Planilla sin datos.")
-        except: st.error("Error de lectura. Verifica que la planilla sea pública.")
-    elif st.session_state.get('p_aud'): st.error("PIN Incorrecto")
+        except: st.error("Error al leer la planilla.")
 
-# --- TAB 3: INFORME EJECUTIVO ---
+# --- TAB 3: INFORME ---
 with tab3:
     if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_AUDITORIA:
         try:
             df_full = pd.read_csv(SHEET_URL)
             if not df_full.empty:
-                df_maquinas = df_full[df_full['tipo_operacion'].str.contains("Máquina")]
-                st.subheader("📊 Consumo por Equipo (Total)")
-                resumo = df_maquinas.groupby('nombre_maquina')['litros'].sum()
+                df_maq = df_full[df_full['tipo_operacion'].str.contains("Máquina")]
+                st.subheader("📊 Consumo Total por Equipo")
+                resumo = df_maq.groupby('nombre_maquina')['litros'].sum()
                 st.bar_chart(resumo)
-                
-                pdf_b = generar_pdf(df_maquinas)
+                pdf_b = generar_pdf(df_maq)
                 st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-        except: st.error("Error al generar informes.")
+        except: st.error("Error en informes.")
