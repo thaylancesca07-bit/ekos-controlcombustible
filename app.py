@@ -4,13 +4,13 @@ import requests
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
 
-# --- 1. CONFIGURACIÓN E IDENTIDAD ---
+# --- 1. CONFIGURACIÓN E IDENTIDAD 🇵🇾 ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
 # URL del Script de Google (Pestaña Registro)
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 
-# ID de la Planilla (Limpiado de espacios y caracteres ocultos)
+# ID de la Planilla Oficial
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
@@ -24,7 +24,7 @@ MAPA_COMBUSTIBLE = {
     "4001812 - Diesel podium S-10 gr.": "Diesel Podium"
 }
 
-# MAPEO DE ENCARGADOS
+# MAPEO DE ENCARGADOS (Auditoria con acceso total)
 ENCARGADOS_DATA = {
     "Juan Britez": {"pwd": "jb2026", "barril": "Barril Juan"},
     "Diego Bordon": {"pwd": "db2026", "barril": "Barril Diego"},
@@ -65,10 +65,11 @@ FLOTA = {
 
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
+st.markdown("---")
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos"])
 
-# --- TAB 1: REGISTRO ---
+# --- TAB 1: REGISTRO PERSONAL ---
 with tab1:
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -76,7 +77,8 @@ with tab1:
     with c_auth2: pwd_input = st.text_input("Contraseña:", type="password")
 
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
-        operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+        st.markdown("---")
+        operacion = st.radio("¿Qué estamos haciendo? 🛠️", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
         
         if encargado_sel == "Auditoria":
             op_barril, op_origen = BARRILES_LISTA, BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
@@ -87,32 +89,32 @@ with tab1:
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
-                sel_m = st.selectbox("Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
+                sel_m = st.selectbox("Selecciona la Máquina:", options=[f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
                 cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
-                origen = st.selectbox("Origen:", op_origen)
+                origen = st.selectbox("¿De dónde sale el combustible? ⛽", op_origen)
             else:
-                cod_f = st.selectbox("Barril:", options=op_barril)
-                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", ["Surtidor Petrobras", "Surtidor Shell"])
+                cod_f = st.selectbox("¿Qué barril vamos a llenar? 📦", options=op_barril)
+                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("¿Desde qué surtidor viene? ⛽", ["Surtidor Petrobras", "Surtidor Shell"])
         
-        with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
+        with c_f2: tipo_comb = st.selectbox("Tipo de Combustible ⛽:", TIPOS_COMBUSTIBLE)
 
         with st.form("form_final_ekos", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                chofer, fecha, act = st.text_input("Chofer"), st.date_input("Fecha", date.today()), st.text_input("Actividad")
+                chofer, fecha, act = st.text_input("Nombre del Chofer / Operador 🧑‍🌾"), st.date_input("Fecha 📅", date.today()), st.text_input("Actividad a desarrollar 🔨")
             with col2:
-                lts = st.number_input("Litros", min_value=0.0, step=0.1)
-                lect = st.number_input(f"Lectura ({unidad})", min_value=0.0) if "Máquina" in operacion else 0.0
+                lts = st.number_input("Cantidad de Litros 💧", min_value=0.0, step=0.1)
+                lect = st.number_input(f"Lectura actual en {unidad} 🔢", min_value=0.0) if "Máquina" in operacion else 0.0
             
             if st.form_submit_button("✅ GUARDAR REGISTRO"):
-                if not chofer or not act: st.warning("Completa los campos.")
+                if not chofer or not act: st.warning("⚠️ Por favor completa los campos.")
                 else:
                     payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb}
                     try:
                         r = requests.post(SCRIPT_URL, json=payload)
                         if r.status_code == 200: st.balloons(); st.success(f"¡Excelente {encargado_sel}! Registro guardado exitosamente. 🚀")
-                        else: st.error("Error en permisos del Script.")
-                    except: st.error("Error de conexión.")
+                        else: st.error("Error al guardar. Verifica los permisos del Script.")
+                    except: st.error("Falla de conexión con la nube.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
 # --- TAB 2: AUDITORÍA & STOCK ---
@@ -121,21 +123,25 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-                st.subheader("📦 Verificación de Stock")
-                tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
-                
-                cb = st.columns(4)
-                for i, b in enumerate(BARRILES_LISTA):
-                    ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                    sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                    cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
+                if 'fecha' in df.columns:
+                    df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                    st.subheader("📦 Verificación de Stock")
+                    tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
+                    
+                    cb = st.columns(4)
+                    for i, b in enumerate(BARRILES_LISTA):
+                        ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                        sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                        cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
 
-                st.markdown("---")
-                st.dataframe(df.sort_values(by='fecha', ascending=False), use_container_width=True)
-            else: st.info("Planilla vacía.")
+                    st.markdown("---")
+                    st.subheader("📋 Historial Completo")
+                    st.dataframe(df.sort_values(by='fecha', ascending=False), use_container_width=True)
+                else:
+                    st.warning("⚠️ La columna 'fecha' no fue encontrada. Asegúrate de que la primera fila de tu planilla tenga los encabezados correctos.")
+            else: st.info("Planilla vacía o sin datos registrados.")
         except Exception as e: 
-            st.error(f"Error al leer base de datos. Asegúrate que la planilla sea pública. Detalle: {e}")
+            st.error(f"Error al leer base de datos. Asegúrate de que la planilla sea pública. Detalle: {e}")
 
 # --- TAB 3: INFORME GRAFICO ---
 with tab3:
@@ -144,7 +150,6 @@ with tab3:
             df_graph = pd.read_csv(SHEET_URL)
             if not df_graph.empty:
                 st.subheader("📊 Consumo Total por Máquina (Litros)")
-                # Filtrar solo operaciones de carga a máquinas
                 df_maq_only = df_graph[df_graph['tipo_operacion'].str.contains("Máquina", na=False)]
                 if not df_maq_only.empty:
                     consumo_resumen = df_maq_only.groupby('nombre_maquina')['litros'].sum()
@@ -155,8 +160,7 @@ with tab3:
                     st.bar_chart(comb_resumen)
                 else:
                     st.info("No hay datos de máquinas para graficar.")
-            else:
-                st.info("No hay datos registrados aún.")
+            else: st.info("No hay datos registrados aún.")
         except Exception as e:
             st.error(f"Error al generar gráficos: {e}")
 
@@ -164,9 +168,10 @@ with tab3:
 with tab4:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Lado a Lado: Ekos vs Petrobras")
-        archivo_p = st.file_uploader("Subir Excel Petrobras", type=["xlsx"])
+        archivo_p = st.file_uploader("Alzar planilla de Petrobras (Excel)", type=["xlsx"])
         if archivo_p:
             try:
+                # F=5, P=15, K=10, O=14 (Basado en 0-index)
                 df_p = pd.read_excel(archivo_p, usecols=[5, 10, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
                 df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 st.dataframe(df_p.head())
@@ -174,6 +179,5 @@ with tab4:
                     for _, r in df_p.iterrows():
                         p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Factura", "origen": "Surtidor", "chofer": "N/A", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
                         requests.post(SCRIPT_URL, json=p)
-                    st.success("✅ Sincronizado.")
-            except Exception as e: st.error(f"Error: {e}")
-
+                    st.success("✅ Datos sincronizados correctamente.")
+            except Exception as e: st.error(f"Error de archivo: {e}")
