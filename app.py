@@ -20,10 +20,10 @@ ACCESS_CODE_AUDITORIA = "1645"
 # MAPEO DE ENCARGADOS -> CONTRASEÑA Y SU BARRIL ASIGNADO
 # Aquí definimos quién cuida cada barril
 ENCARGADOS_DATA = {
-    "Juan Perez": {"pwd": "jp2026", "barril": "Barril Juan"},
-    "Diego Garcia": {"pwd": "dg2026", "barril": "Barril Diego"},
-    "Jonatan Silva": {"pwd": "js2026", "barril": "Barril Jonatan"},
-    "Cesar Benitez": {"pwd": "cb2026", "barril": "Barril Cesar"},
+    "Juan Britez": {"pwd": "jb2026", "barril": "Barril Juan"},
+    "Diego Bordon": {"pwd": "db2026", "barril": "Barril Diego"},
+    "Jonatan Vargas": {"pwd": "jv2026", "barril": "Barril Jonatan"},
+    "Cesar Cabañas": {"pwd": "cc2026", "barril": "Barril Cesar"},
     "Admin Ekos": {"pwd": "1645", "barril": "Todos"}
 }
 
@@ -85,10 +85,10 @@ def generar_pdf(df):
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
+tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico"])
 
 # --- TAB 1: REGISTRO RESTRINGIDO ---
 with tab1:
@@ -202,3 +202,4 @@ with tab3:
                 pdf_b = generar_pdf(df_maq)
                 st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
         except: st.error("Error en informes.")
+
