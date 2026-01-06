@@ -73,11 +73,9 @@ def generar_pdf(df):
     return pdf.output(dest='S').encode('latin-1')
 
 # --- 3. INTERFAZ PRINCIPAL ---
-st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
-conn = st.connection("gsheets", type=GSheetsConnection)
 
-st.title("🇵🇾 Combustible Control Ekos")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>powered by Excelencia Consultora - Nueva Esperanza</p>", unsafe_allow_html=True)
+st.title("⛽ Ekos Forestal / Control de combustible")
+st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>desenvolvido por Excelencia Consultora en Paraguay </p>", unsafe_allow_html=True)
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Ejecutivo"])
@@ -198,3 +196,4 @@ with tab3:
             pdf_b = generar_pdf(resumo)
             st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
     elif pwd2: st.error("Acceso denegado 🔒")
+
