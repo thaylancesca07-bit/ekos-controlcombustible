@@ -13,7 +13,7 @@ SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMiQPn1c5dG_bB0GVS5LSeKqM
 # --- ATENÇÃO: COLOQUE O ID DA SUA PLANILHA AQUI PARA A LEITURA FUNCIONAR ---
 # O ID é aquele código longo que fica no link da sua planilha no navegador
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E" 
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E}/export?format=csv"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E/export?format=csv"
 
 ACCESS_CODE = "1645"
 BARRILES = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
@@ -175,4 +175,5 @@ with tab3:
                 st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
         except:
             st.error("Error al generar informes.")
+
 
