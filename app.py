@@ -7,7 +7,7 @@ from fpdf import FPDF
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# URL del Script de Google (Pestaña Registro)
+# URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 
 # ID de la Planilla Oficial
@@ -24,7 +24,7 @@ MAPA_COMBUSTIBLE = {
     "4001812 - Diesel podium S-10 gr.": "Diesel Podium"
 }
 
-# MAPEO DE ENCARGADOS (Auditoria con acceso total)
+# MAPEO DE ENCARGADOS
 ENCARGADOS_DATA = {
     "Juan Britez": {"pwd": "jb2026", "barril": "Barril Juan"},
     "Diego Bordon": {"pwd": "db2026", "barril": "Barril Diego"},
@@ -141,63 +141,29 @@ with tab1:
                     error_lectura = False
                     media_calc = 0.0
                     
-                    # ----------------------------------------------------
-                    # VALIDACIÓN DE LECTURA Y CÁLCULO DE PROMEDIO
-                    # ----------------------------------------------------
                     if "Máquina" in operacion and lect > 0:
                         try:
-                            # 1. Leer planilla para buscar historial
                             df_hist = pd.read_csv(SHEET_URL)
-                            # 2. Filtrar solo esta máquina
-                            hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
+                            df_hist.columns = df_hist.columns.str.strip().str.lower()
                             
+                            hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
                             if not hist_maq.empty:
-                                # Obtener la máxima lectura registrada hasta hoy
                                 ult_lectura = hist_maq['lectura_actual'].max()
-                                
-                                # VALIDACIÓN: Si la nueva lectura es menor, BLOQUEAR.
                                 if lect < ult_lectura:
-                                    st.error(f"⛔ ERROR CRÍTICO: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}). No se puede guardar.")
+                                    st.error(f"⛔ ERROR CRÍTICO: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}).")
                                     error_lectura = True
                                 else:
-                                    # CÁLCULO DE PROMEDIO (Diferencia / Litros)
                                     recorrido = lect - ult_lectura
-                                    if lts > 0:
-                                        media_calc = recorrido / lts
-                            else:
-                                # Primer registro de la máquina, media es 0
-                                media_calc = 0.0
-                        except Exception as e:
-                            # Si falla la lectura de la base (ej. vacía), permitimos guardar con media 0
-                            # pero avisamos (opcional, aquí lo dejamos pasar para no trabar si es el primer uso)
-                            media_calc = 0.0
-                    # ----------------------------------------------------
+                                    if lts > 0: media_calc = recorrido / lts
+                        except: pass 
 
                     if not error_lectura:
-                        payload = {
-                            "fecha": str(fecha), 
-                            "tipo_operacion": operacion, 
-                            "codigo_maquina": cod_f, 
-                            "nombre_maquina": nom_f, 
-                            "origen": origen, 
-                            "chofer": chofer, 
-                            "responsable_cargo": encargado_sel, 
-                            "actividad": act, 
-                            "lectura_actual": lect, 
-                            "litros": lts, 
-                            "tipo_combustible": tipo_comb,
-                            "media": media_calc # <-- AQUÍ SE ENVÍA EL PROMEDIO CALCULADO
-                        }
+                        payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb, "media": media_calc}
                         try:
                             r = requests.post(SCRIPT_URL, json=payload)
-                            if r.status_code == 200: 
-                                st.balloons()
-                                st.success(f"¡Guardado, Excelente Trabajo! Promedio calculado: {media_calc:.2f}")
-                            else: 
-                                st.error("Error en permisos del Script.")
-                        except: 
-                            st.error("Error de conexión.")
-                            
+                            if r.status_code == 200: st.balloons(); st.success(f"¡Guardado! Promedio calculado: {media_calc:.2f}")
+                            else: st.error("Error en permisos del Script.")
+                        except: st.error("Error de conexión.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
 # --- TAB 2: AUDITORÍA & STOCK ---
@@ -206,36 +172,47 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                if 'fecha' in df.columns:
-                    df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-                    st.subheader("📦 Verificación de Stock")
-                    tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
-                    
-                    cb = st.columns(4)
-                    for i, b in enumerate(BARRILES_LISTA):
-                        ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                        sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                        cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
-
-                    st.markdown("---")
-                    st.subheader("📋 Historial Completo")
-                    # Mostrar columna Media también
-                    cols_to_show = ['fecha', 'nombre_maquina', 'litros', 'lectura_actual', 'media', 'tipo_combustible', 'responsable_cargo']
-                    # Filtramos columnas que existen para evitar error si 'media' aun no existe en viejos registros
-                    cols_final = [c for c in cols_to_show if c in df.columns]
-                    st.dataframe(df[cols_final].sort_values(by='fecha', ascending=False), use_container_width=True)
+                # Detección de error HTML (Permisos)
+                if len(df.columns) > 0 and "html" in str(df.columns[0]).lower():
+                    st.error("🚨 ERROR DE PERMISOS DE GOOGLE SHEETS. Pon la planilla como 'Pública - Lector'.")
                 else:
-                    st.warning("⚠️ Faltan encabezados en la planilla.")
+                    df.columns = df.columns.str.strip().str.lower()
+                    
+                    if 'fecha' in df.columns:
+                        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                        st.subheader("📦 Verificación de Stock")
+                        tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
+                        
+                        cb = st.columns(4)
+                        for i, b in enumerate(BARRILES_LISTA):
+                            ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                            sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                            cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
+
+                        st.markdown("---")
+                        st.subheader("📋 Historial Completo")
+                        
+                        # --- MODIFICACIÓN SOLICITADA: VISUALIZACIÓN DE ORIGEN ---
+                        # Definimos las columnas clave que queremos ver, INCLUYENDO 'origen'
+                        cols_deseadas = ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual']
+                        # Filtramos solo las que existen en el Excel para no dar error
+                        cols_finales = [c for c in cols_deseadas if c in df.columns]
+                        
+                        st.dataframe(df[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
+                    else:
+                        st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla (fecha, litros, origen, etc).")
             else: st.info("Planilla vacía.")
         except Exception as e: 
-            st.error(f"Error de base de datos: {e}")
+            st.error(f"Error técnico: {e}")
 
 # --- TAB 3: INFORME GRAFICO ---
 with tab3:
     if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_MAESTRO:
         try:
             df_graph = pd.read_csv(SHEET_URL)
-            if not df_graph.empty:
+            df_graph.columns = df_graph.columns.str.strip().str.lower()
+            
+            if not df_graph.empty and 'nombre_maquina' in df_graph.columns:
                 st.subheader("📊 Consumo Total por Máquina (Litros)")
                 df_maq_only = df_graph[df_graph['tipo_operacion'].str.contains("Máquina", na=False)]
                 if not df_maq_only.empty:
@@ -248,11 +225,9 @@ with tab3:
                     
                     pdf_b = generar_pdf(df_maq_only)
                     st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-                else:
-                    st.info("No hay datos de máquinas para graficar.")
-            else: st.info("No hay datos registrados aún.")
-        except Exception as e:
-            st.error(f"Error al generar gráficos: {e}")
+                else: st.info("No hay datos de máquinas.")
+            else: st.warning("Datos insuficientes.")
+        except Exception as e: st.error(f"Error: {e}")
 
 # --- TAB 4: CONFIRMACIÓN DE DATOS ---
 with tab4:
