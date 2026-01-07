@@ -69,7 +69,7 @@ FLOTA = {
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        # Limpiamos el texto del encabezado también por si acaso
+        # Limpieza de caracteres para evitar errores
         titulo = 'INFORME EJECUTIVO - CONTROL EKOS'.encode('latin-1', 'replace').decode('latin-1')
         subtitulo = 'Excelencia Consultora - Nueva Esperanza - Canindeyu'.encode('latin-1', 'replace').decode('latin-1')
         self.cell(0, 10, titulo, 0, 1, 'C')
@@ -78,7 +78,6 @@ class PDF(FPDF):
         self.ln(5)
 
 def generar_pdf(df):
-    # Función interna para limpiar caracteres incompatibles
     def clean_text(text):
         return str(text).encode('latin-1', 'replace').decode('latin-1')
 
@@ -95,14 +94,13 @@ def generar_pdf(df):
             litros_val = float(row['litros'])
         except:
             litros_val = 0.0
-            
         pdf.cell(w[0], 10, clean_text(row['codigo_maquina']), 1)
         pdf.cell(w[1], 10, clean_text(row['nombre_maquina']), 1)
         pdf.cell(w[2], 10, clean_text(row['fecha']), 1)
         pdf.cell(w[3], 10, f"{litros_val:.1f}", 1)
         pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible', 'N/A')), 1)
         pdf.ln()
-    return pdf.output(dest='S').encode('latin-1', 'replace') # 'replace' evita el error final
+    return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
@@ -159,7 +157,7 @@ with tab1:
                         try:
                             df_hist = pd.read_csv(SHEET_URL)
                             df_hist.columns = df_hist.columns.str.strip().str.lower()
-                            # LIMPIEZA DE DATOS (Prevención de errores)
+                            # LIMPIEZA DE DATOS
                             cols_num = ['lectura_actual', 'litros', 'media']
                             for c in cols_num:
                                 if c in df_hist.columns:
@@ -196,7 +194,7 @@ with tab2:
                 else:
                     df.columns = df.columns.str.strip().str.lower()
                     
-                    # LIMPIEZA AUTOMÁTICA DE DATOS
+                    # LIMPIEZA AUTOMÁTICA
                     cols_num = ['litros', 'media', 'lectura_actual']
                     for c in cols_num:
                         if c in df.columns:
@@ -236,8 +234,8 @@ with tab3:
             df_graph = pd.read_csv(SHEET_URL)
             df_graph.columns = df_graph.columns.str.strip().str.lower()
             
-            # --- LIMPIEZA CRÍTICA PARA EVITAR ERROR 'int' + 'str' ---
-            cols_num = ['litros', 'media']
+            # --- LIMPIEZA Y CORRECCIÓN DE TIPOS ---
+            cols_num = ['litros', 'media', 'lectura_actual']
             for c in cols_num:
                 if c in df_graph.columns:
                     df_graph[c] = pd.to_numeric(df_graph[c], errors='coerce').fillna(0)
@@ -265,8 +263,23 @@ with tab3:
                             datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
                             total_litros = datos_maq['litros'].sum()
                             
+                            # --- CÁLCULO HÍBRIDO INTELIGENTE ---
+                            # 1. Intento por columna 'media' (registro a registro)
                             datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
-                            total_recorrido = datos_maq['recorrido_est'].sum()
+                            total_recorrido_media = datos_maq['recorrido_est'].sum()
+                            
+                            # 2. Intento por diferencia de lecturas (Rescate)
+                            lectura_max = datos_maq['lectura_actual'].max()
+                            lectura_min = datos_maq['lectura_actual'].min()
+                            total_recorrido_lecturas = lectura_max - lectura_min
+                            
+                            # Decisión: Si el cálculo por media da muy bajo (ej. 0) y el de lecturas da algo, usamos lecturas.
+                            if total_recorrido_media > 1:
+                                total_recorrido = total_recorrido_media
+                            elif total_recorrido_lecturas > 0:
+                                total_recorrido = total_recorrido_lecturas
+                            else:
+                                total_recorrido = 0
                             
                             unidad = FLOTA[cod]['unidad']
                             ideal = FLOTA[cod].get('ideal', 0.0)
@@ -310,7 +323,6 @@ with tab3:
                     st.subheader("Gráficos de Consumo")
                     st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                     
-                    # Llamada a generar_pdf corregida
                     pdf_b = generar_pdf(df_maq)
                     st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
                 else: st.info("No hay movimientos en este rango.")
