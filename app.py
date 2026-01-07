@@ -97,40 +97,31 @@ def generar_excel(df):
         worksheet.set_column('A:N', 20)
     return output.getvalue()
 
-# GENERADOR DE WORD (.docx)
 def generar_word(df_data, titulo_reporte, grafico_fig=None):
     doc = Document()
     doc.add_heading(titulo_reporte, 0)
     doc.add_paragraph('Generado por Sistema Ekos Control')
     
-    # Agregar Gráfico si existe
     if grafico_fig:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             grafico_fig.savefig(tmpfile.name, format='png')
             doc.add_picture(tmpfile.name, width=Inches(6))
             doc.add_paragraph('Grafico de Analisis')
     
-    # Agregar Tabla
     if not df_data.empty:
         t = doc.add_table(rows=1, cols=len(df_data.columns))
         t.style = 'Table Grid'
-        
-        # Encabezados
         hdr_cells = t.rows[0].cells
         for i, col_name in enumerate(df_data.columns):
             hdr_cells[i].text = str(col_name)
-        
-        # Filas
         for _, row in df_data.iterrows():
             row_cells = t.add_row().cells
             for i, item in enumerate(row):
-                # Limpiar texto para Word
                 texto_celda = str(item)
                 if isinstance(item, float):
                     texto_celda = f"{item:.2f}"
                 row_cells[i].text = texto_celda
                 
-    # Guardar en buffer
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
@@ -493,19 +484,47 @@ with tab5:
                         })
                     
                     df_resumen_mensual = pd.DataFrame(datos_mensuales)
+                    
+                    # -----------------------------------------------------------
+                    # NUEVA VISUALIZACIÓN PREMIUM: GRÁFICOS INTERNOS EN APP
+                    # -----------------------------------------------------------
+                    st.subheader(f"📊 Panel de Control: {FLOTA[cod_maq]['nombre']}")
+                    
+                    col_chart1, col_chart2 = st.columns(2)
+                    
+                    # Gráfico 1: Rendimiento (Real vs Ideal)
+                    with col_chart1:
+                        st.markdown("**Rendimiento Mensual (Unidad/Litro)**")
+                        fig_line, ax_line = plt.subplots(figsize=(6, 4))
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
+                        ax_line.set_ylabel("Rendimiento")
+                        ax_line.legend()
+                        ax_line.grid(True, alpha=0.3)
+                        # Rotar etiquetas eje X
+                        plt.setp(ax_line.get_xticklabels(), rotation=45, ha="right")
+                        # Etiquetas de valor
+                        for i, txt in enumerate(df_resumen_mensual['Promedio Real']):
+                            if txt > 0: ax_line.annotate(f"{txt}", (i, txt), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=8)
+                        st.pyplot(fig_line)
+
+                    # Gráfico 2: Consumo (Litros)
+                    with col_chart2:
+                        st.markdown("**Consumo Total de Combustible (Litros)**")
+                        fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
+                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
+                        ax_bar.set_ylabel("Litros")
+                        ax_bar.grid(axis='y', alpha=0.3)
+                        plt.setp(ax_bar.get_xticklabels(), rotation=45, ha="right")
+                        # Etiquetas
+                        for bar in bars:
+                            height = bar.get_height()
+                            if height > 0: ax_bar.annotate(f'{int(height)}', xy=(bar.get_x() + bar.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
+                        st.pyplot(fig_bar)
+
+                    # Tabla de datos abajo
+                    st.markdown("#### Detalle Numérico")
                     st.dataframe(df_resumen_mensual, use_container_width=True)
-                    
-                    st.subheader(f"Evolución Anual: {FLOTA[cod_maq]['nombre']}")
-                    
-                    # Crear gráfico para el reporte (Matplotlib)
-                    fig_anual, ax_anual = plt.subplots(figsize=(10, 5))
-                    ax_anual.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='blue')
-                    ax_anual.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='green')
-                    ax_anual.set_title(f"Rendimiento {anio_elegido}: {FLOTA[cod_maq]['nombre']}")
-                    ax_anual.legend()
-                    ax_anual.grid(True, alpha=0.3)
-                    plt.xticks(rotation=45)
-                    st.pyplot(fig_anual) # Mostrar en pantalla
 
                     # Botones de descarga
                     col_d1, col_d2 = st.columns(2)
@@ -513,8 +532,10 @@ with tab5:
                         pdf_anual = generar_pdf_con_graficos(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", incluir_grafico=True, tipo_grafico="anual")
                         st.download_button("📄 Descargar PDF Anual", pdf_anual, f"Reporte_{cod_maq}_{anio_elegido}.pdf")
                     with col_d2:
-                        word_anual = generar_word(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", grafico_fig=fig_anual)
+                        word_anual = generar_word(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", grafico_fig=fig_line)
                         st.download_button("📝 Descargar Word Anual", word_anual, f"Reporte_{cod_maq}_{anio_elegido}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
                     
-                else: st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
+                else:
+                    st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
+
         except Exception as e: st.error(f"Error al procesar: {e}")
