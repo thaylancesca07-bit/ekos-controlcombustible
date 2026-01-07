@@ -100,7 +100,7 @@ def generar_excel(df):
 def generar_word(df_data, titulo_reporte, grafico_fig=None):
     doc = Document()
     doc.add_heading(titulo_reporte, 0)
-    doc.add_paragraph('Generado por Sistema Ekos Control')
+    doc.add_paragraph('Generado por el Sistema Excelencia Consultora')
     
     if grafico_fig:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
@@ -196,7 +196,7 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Promedio en el Rango", "🔍 La punta de la aguja", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
 with tab1:
@@ -327,7 +327,7 @@ with tab3:
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
                 
-                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
+                st.subheader("📊 Análisis de Rendimiento)")
                 
                 c_g1, c_g2 = st.columns(2)
                 with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
@@ -539,3 +539,4 @@ with tab5:
                     st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
 
         except Exception as e: st.error(f"Error al procesar: {e}")
+
