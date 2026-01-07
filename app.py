@@ -16,6 +16,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=cs
 
 ACCESS_CODE_MAESTRO = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
+MARGEN_TOLERANCIA = 0.20 # 20% de margen aceptable (arriba o abajo del ideal)
 
 # MAPEO DE COMBUSTIBLES PETROBRAS
 MAPA_COMBUSTIBLE = {
@@ -35,32 +36,34 @@ ENCARGADOS_DATA = {
 
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
+# --- FLOTA CON PROMEDIOS IDEALES (OBJETIVOS) ---
+# Ajusta estos valores según la realidad de tu operación.
 FLOTA = {
-    "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas"},
-    "JD-01": {"nombre": "John Deere", "unidad": "Horas"},
-    "M-11": {"nombre": "N. Frontier", "unidad": "KM"},
-    "M-17": {"nombre": "GM S-10", "unidad": "KM"},
-    "V-12": {"nombre": "Valtra 180", "unidad": "Horas"},
-    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas"},
-    "MC-06": {"nombre": "MB Canter", "unidad": "KM"},
-    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM"},
-    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas"},
-    "MF-02": {"nombre": "Massey", "unidad": "Horas"},
-    "V-07": {"nombre": "Valmet 1580", "unidad": "Horas"},
-    "TM-01": {"nombre": "Pala Michigan", "unidad": "Horas"},
-    "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas"},
-    "V-02": {"nombre": "Valmet 785", "unidad": "Horas"},
-    "V-11": {"nombre": "Valmet 8080", "unidad": "Horas"},
-    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas"},
-    "TF01": {"nombre": "Ford", "unidad": "Horas"},
-    "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas"},
-    "S-08": {"nombre": "Scania Rojo", "unidad": "KM"},
-    "S-05": {"nombre": "Scania Azul", "unidad": "KM"},
-    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM"},
-    "S-03": {"nombre": "Scania 113H", "unidad": "KM"},
-    "S-06": {"nombre": "Scania P112H", "unidad": "Horas"},
-    "S-07": {"nombre": "Scania R380", "unidad": "Horas"},
-    "O-01": {"nombre": "Otros", "unidad": "Horas"}
+    "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
+    "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
+    "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
+    "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0}, # Ajustado a aprox 10 para dar rango 8-12
+    "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0},
+    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
+    "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
+    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
+    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
+    "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
+    "V-07": {"nombre": "Valmet 1580", "unidad": "Horas", "ideal": 11.0},
+    "TM-01": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
+    "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
+    "V-02": {"nombre": "Valmet 785", "unidad": "Horas", "ideal": 7.0},
+    "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
+    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas", "ideal": 5.0},
+    "TF01": {"nombre": "Ford", "unidad": "Horas", "ideal": 0.0},
+    "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
+    "S-08": {"nombre": "Scania Rojo", "unidad": "KM", "ideal": 2.2},
+    "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
+    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
+    "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
+    "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
+    "S-07": {"nombre": "Scania R380", "unidad": "Horas", "ideal": 0.0},
+    "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0}
 }
 
 # --- 2. GENERADOR DE PDF ---
@@ -148,11 +151,13 @@ with tab1:
                             
                             hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
                             if not hist_maq.empty:
+                                # Validación: Lectura no puede ser menor a la histórica máxima
                                 ult_lectura = hist_maq['lectura_actual'].max()
                                 if lect < ult_lectura:
-                                    st.error(f"⛔ ERROR CRÍTICO: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}).")
+                                    st.error(f"⛔ ERROR: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}). Verifique los datos.")
                                     error_lectura = True
                                 else:
+                                    # Cálculo de Promedio del viaje actual
                                     recorrido = lect - ult_lectura
                                     if lts > 0: media_calc = recorrido / lts
                         except: pass 
@@ -173,10 +178,9 @@ with tab2:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
                 if len(df.columns) > 0 and "html" in str(df.columns[0]).lower():
-                    st.error("🚨 ERROR DE PERMISOS DE GOOGLE SHEETS. Pon la planilla como 'Pública - Lector'.")
+                    st.error("🚨 ERROR DE PERMISOS. Pon la planilla como 'Pública - Lector'.")
                 else:
                     df.columns = df.columns.str.strip().str.lower()
-                    
                     if 'fecha' in df.columns:
                         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                         
@@ -199,17 +203,13 @@ with tab2:
                         mask = (df['fecha'].dt.date >= f_ini) & (df['fecha'].dt.date <= f_fin)
                         df_filtrado = df.loc[mask]
                         
-                        cols_deseadas = ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual']
-                        cols_finales = [c for c in cols_deseadas if c in df.columns]
-                        
+                        cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
-                        st.info(f"Mostrando {len(df_filtrado)} registros desde {f_ini} hasta {f_fin}.")
-                    else:
-                        st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla.")
+                    else: st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
 
-# --- TAB 3: INFORME GRAFICO ---
+# --- TAB 3: INFORME GRAFICO AVANZADO ---
 with tab3:
     if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_MAESTRO:
         try:
@@ -219,57 +219,105 @@ with tab3:
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
                 
-                st.subheader("📊 Filtro de Fechas para Gráficos")
+                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
+                
+                # Filtros
                 c_g1, c_g2 = st.columns(2)
-                with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini")
-                with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin")
+                with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
+                with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin_r")
                 
                 mask_g = (df_graph['fecha'].dt.date >= g_ini) & (df_graph['fecha'].dt.date <= g_fin)
-                df_g_filtered = df_graph.loc[mask_g]
+                df_g = df_graph.loc[mask_g]
                 
-                if not df_g_filtered.empty:
-                    st.markdown("---")
-                    st.subheader("Consumo por Máquina (Litros)")
-                    df_maq_only = df_g_filtered[df_g_filtered['tipo_operacion'].str.contains("Máquina", na=False)]
+                # Solo máquinas
+                df_maq = df_g[df_g['tipo_operacion'].str.contains("Máquina", na=False)]
+                
+                if not df_maq.empty:
+                    # Preparar tabla de resumen
+                    resumen_data = []
+                    maquinas_activas = df_maq['codigo_maquina'].unique()
                     
-                    if not df_maq_only.empty:
-                        consumo_resumen = df_maq_only.groupby('nombre_maquina')['litros'].sum()
-                        st.bar_chart(consumo_resumen)
-                        
-                        st.subheader("Consumo por Tipo de Combustible")
-                        comb_resumen = df_maq_only.groupby('tipo_combustible')['litros'].sum()
-                        st.bar_chart(comb_resumen)
-                        
-                        pdf_b = generar_pdf(df_maq_only)
-                        st.download_button("📄 Descargar Reporte PDF (Periodo Seleccionado)", pdf_b, "Informe_Ekos.pdf")
-                    else: st.info("No hay consumo de máquinas en este periodo.")
-                else: st.warning("No hay datos en el rango de fechas seleccionado.")
-            else: st.warning("Datos insuficientes.")
-        except Exception as e: st.error(f"Error al generar gráficos: {e}")
+                    for cod in maquinas_activas:
+                        if cod in FLOTA:
+                            datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
+                            total_litros = datos_maq['litros'].sum()
+                            
+                            # Recuperamos "recorrido" aproximado = media * litros
+                            # para recalcular el promedio ponderado del periodo
+                            datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
+                            total_recorrido = datos_maq['recorrido_est'].sum()
+                            
+                            unidad = FLOTA[cod]['unidad']
+                            ideal = FLOTA[cod].get('ideal', 0.0)
+                            
+                            promedio_real = 0.0
+                            metric_label = "Unid/L"
+                            
+                            if total_litros > 0:
+                                if unidad == 'KM':
+                                    promedio_real = total_recorrido / total_litros
+                                    metric_label = "KM/L"
+                                else: # HORAS
+                                    # En la base se guarda como Horas/Litro? O L/Hora?
+                                    # La lógica de guardado fue: media = recorrido (Horas) / litros
+                                    # Entonces 'media' es Horas por Litro.
+                                    # Para reporte de L/Hora (que es más común), invertimos:
+                                    if total_recorrido > 0:
+                                        promedio_real = total_litros / total_recorrido # L/Hora
+                                    metric_label = "L/Hora"
+                            
+                            # ESTADO CON MARGEN %
+                            estado = "N/A"
+                            if ideal > 0:
+                                margen = ideal * MARGEN_TOLERANCIA
+                                min_ok = ideal - margen
+                                max_ok = ideal + margen
+                                
+                                if min_ok <= promedio_real <= max_ok:
+                                    estado = "✅ Normal"
+                                else:
+                                    estado = "⚠️ Fuera de Rango"
+
+                            resumen_data.append({
+                                "Máquina": FLOTA[cod]['nombre'],
+                                "Unidad": unidad,
+                                "Litros Usados": total_litros,
+                                f"Promedio Real ({metric_label})": round(promedio_real, 2),
+                                f"Promedio Ideal": ideal,
+                                "Estado": estado
+                            })
+                    
+                    # Mostrar Tabla
+                    st.dataframe(pd.DataFrame(resumen_data), use_container_width=True)
+                    st.caption(f"Nota: El margen aceptable es +/- {int(MARGEN_TOLERANCIA*100)}% del ideal.")
+                    
+                    st.markdown("---")
+                    st.subheader("Gráficos de Consumo")
+                    st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
+                    
+                    pdf_b = generar_pdf(df_maq)
+                    st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
+                else: st.info("No hay movimientos de máquinas en este rango de fechas.")
+            else: st.warning("Sin datos.")
+        except Exception as e: st.error(f"Error en reporte: {e}")
 
 # --- TAB 4: CONFIRMACIÓN DE DATOS ---
 with tab4:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Lado a Lado: Ekos vs Petrobras")
-        # ACEPTAR CSV Y EXCEL PARA EVITAR ERRORES DE FORMATO
         archivo_p = st.file_uploader("Subir Archivo Petrobras (Excel o CSV)", type=["xlsx", "csv"])
         if archivo_p:
             try:
-                # DETECCIÓN INTELIGENTE DE FORMATO
                 if archivo_p.name.endswith('.csv'):
-                    # Si es CSV, usamos read_csv con los índices ajustados (F=5, M=12, O=14, P=15)
-                    # A veces los CSV usan ; como separador, probamos por defecto ','
                     df_p = pd.read_csv(archivo_p, header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
                 else:
-                    # Si es Excel, usamos read_excel
                     df_p = pd.read_excel(archivo_p, usecols=[5, 12, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
 
                 df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 st.dataframe(df_p.head())
-                
                 if st.button("🚀 SINCRONIZAR"):
                     for _, r in df_p.iterrows():
                         p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Factura", "origen": "Surtidor", "chofer": "N/A", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
-            except Exception as e: st.error(f"Error al leer archivo: {e}. Verifique que sea el formato correcto.")
+            except Exception as e: st.error(f"Error: {e}")
