@@ -172,7 +172,6 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                # Verificación de permisos
                 if len(df.columns) > 0 and "html" in str(df.columns[0]).lower():
                     st.error("🚨 ERROR DE PERMISOS DE GOOGLE SHEETS. Pon la planilla como 'Pública - Lector'.")
                 else:
@@ -186,7 +185,6 @@ with tab2:
                         
                         cb = st.columns(4)
                         for i, b in enumerate(BARRILES_LISTA):
-                            # El stock se calcula sobre TODO el historial para ser real, no depende del filtro de fecha visual
                             ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
                             sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
                             cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
@@ -194,14 +192,10 @@ with tab2:
                         st.markdown("---")
                         st.subheader("📋 Historial de Movimientos")
                         
-                        # --- NUEVO: FILTRO DE FECHAS ---
                         c_date1, c_date2 = st.columns(2)
-                        with c_date1: 
-                            f_ini = st.date_input("Fecha Inicio:", date.today() - timedelta(days=30))
-                        with c_date2: 
-                            f_fin = st.date_input("Fecha Fin:", date.today())
+                        with c_date1: f_ini = st.date_input("Fecha Inicio:", date.today() - timedelta(days=30))
+                        with c_date2: f_fin = st.date_input("Fecha Fin:", date.today())
                         
-                        # Aplicar filtro a la tabla visual
                         mask = (df['fecha'].dt.date >= f_ini) & (df['fecha'].dt.date <= f_fin)
                         df_filtrado = df.loc[mask]
                         
@@ -213,8 +207,7 @@ with tab2:
                     else:
                         st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla.")
             else: st.info("Planilla vacía.")
-        except Exception as e: 
-            st.error(f"Error técnico: {e}")
+        except Exception as e: st.error(f"Error técnico: {e}")
 
 # --- TAB 3: INFORME GRAFICO ---
 with tab3:
@@ -231,7 +224,6 @@ with tab3:
                 with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini")
                 with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin")
                 
-                # Filtrar datos
                 mask_g = (df_graph['fecha'].dt.date >= g_ini) & (df_graph['fecha'].dt.date <= g_fin)
                 df_g_filtered = df_graph.loc[mask_g]
                 
@@ -250,27 +242,34 @@ with tab3:
                         
                         pdf_b = generar_pdf(df_maq_only)
                         st.download_button("📄 Descargar Reporte PDF (Periodo Seleccionado)", pdf_b, "Informe_Ekos.pdf")
-                    else:
-                        st.info("No hay consumo de máquinas en este periodo.")
-                else:
-                    st.warning("No hay datos en el rango de fechas seleccionado.")
+                    else: st.info("No hay consumo de máquinas en este periodo.")
+                else: st.warning("No hay datos en el rango de fechas seleccionado.")
             else: st.warning("Datos insuficientes.")
-        except Exception as e:
-            st.error(f"Error al generar gráficos: {e}")
+        except Exception as e: st.error(f"Error al generar gráficos: {e}")
 
 # --- TAB 4: CONFIRMACIÓN DE DATOS ---
 with tab4:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Lado a Lado: Ekos vs Petrobras")
-        archivo_p = st.file_uploader("Subir Excel Petrobras", type=["xlsx"])
+        # ACEPTAR CSV Y EXCEL PARA EVITAR ERRORES DE FORMATO
+        archivo_p = st.file_uploader("Subir Archivo Petrobras (Excel o CSV)", type=["xlsx", "csv"])
         if archivo_p:
             try:
-                df_p = pd.read_excel(archivo_p, usecols=[5, 10, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
+                # DETECCIÓN INTELIGENTE DE FORMATO
+                if archivo_p.name.endswith('.csv'):
+                    # Si es CSV, usamos read_csv con los índices ajustados (F=5, M=12, O=14, P=15)
+                    # A veces los CSV usan ; como separador, probamos por defecto ','
+                    df_p = pd.read_csv(archivo_p, header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
+                else:
+                    # Si es Excel, usamos read_excel
+                    df_p = pd.read_excel(archivo_p, usecols=[5, 12, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
+
                 df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 st.dataframe(df_p.head())
+                
                 if st.button("🚀 SINCRONIZAR"):
                     for _, r in df_p.iterrows():
                         p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Factura", "origen": "Surtidor", "chofer": "N/A", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
-            except Exception as e: st.error(f"Error: {e}")
+            except Exception as e: st.error(f"Error al leer archivo: {e}. Verifique que sea el formato correcto.")
