@@ -172,7 +172,7 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                # Detección de error HTML (Permisos)
+                # Verificación de permisos
                 if len(df.columns) > 0 and "html" in str(df.columns[0]).lower():
                     st.error("🚨 ERROR DE PERMISOS DE GOOGLE SHEETS. Pon la planilla como 'Pública - Lector'.")
                 else:
@@ -180,27 +180,38 @@ with tab2:
                     
                     if 'fecha' in df.columns:
                         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-                        st.subheader("📦 Verificación de Stock")
+                        
+                        st.subheader("📦 Verificación de Stock (Total Histórico)")
                         tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
                         
                         cb = st.columns(4)
                         for i, b in enumerate(BARRILES_LISTA):
+                            # El stock se calcula sobre TODO el historial para ser real, no depende del filtro de fecha visual
                             ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
                             sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
                             cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
 
                         st.markdown("---")
-                        st.subheader("📋 Historial Completo")
+                        st.subheader("📋 Historial de Movimientos")
                         
-                        # --- MODIFICACIÓN SOLICITADA: VISUALIZACIÓN DE ORIGEN ---
-                        # Definimos las columnas clave que queremos ver, INCLUYENDO 'origen'
+                        # --- NUEVO: FILTRO DE FECHAS ---
+                        c_date1, c_date2 = st.columns(2)
+                        with c_date1: 
+                            f_ini = st.date_input("Fecha Inicio:", date.today() - timedelta(days=30))
+                        with c_date2: 
+                            f_fin = st.date_input("Fecha Fin:", date.today())
+                        
+                        # Aplicar filtro a la tabla visual
+                        mask = (df['fecha'].dt.date >= f_ini) & (df['fecha'].dt.date <= f_fin)
+                        df_filtrado = df.loc[mask]
+                        
                         cols_deseadas = ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual']
-                        # Filtramos solo las que existen en el Excel para no dar error
                         cols_finales = [c for c in cols_deseadas if c in df.columns]
                         
-                        st.dataframe(df[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
+                        st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
+                        st.info(f"Mostrando {len(df_filtrado)} registros desde {f_ini} hasta {f_fin}.")
                     else:
-                        st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla (fecha, litros, origen, etc).")
+                        st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla.")
             else: st.info("Planilla vacía.")
         except Exception as e: 
             st.error(f"Error técnico: {e}")
@@ -212,22 +223,40 @@ with tab3:
             df_graph = pd.read_csv(SHEET_URL)
             df_graph.columns = df_graph.columns.str.strip().str.lower()
             
-            if not df_graph.empty and 'nombre_maquina' in df_graph.columns:
-                st.subheader("📊 Consumo Total por Máquina (Litros)")
-                df_maq_only = df_graph[df_graph['tipo_operacion'].str.contains("Máquina", na=False)]
-                if not df_maq_only.empty:
-                    consumo_resumen = df_maq_only.groupby('nombre_maquina')['litros'].sum()
-                    st.bar_chart(consumo_resumen)
+            if not df_graph.empty and 'fecha' in df_graph.columns:
+                df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
+                
+                st.subheader("📊 Filtro de Fechas para Gráficos")
+                c_g1, c_g2 = st.columns(2)
+                with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini")
+                with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin")
+                
+                # Filtrar datos
+                mask_g = (df_graph['fecha'].dt.date >= g_ini) & (df_graph['fecha'].dt.date <= g_fin)
+                df_g_filtered = df_graph.loc[mask_g]
+                
+                if not df_g_filtered.empty:
+                    st.markdown("---")
+                    st.subheader("Consumo por Máquina (Litros)")
+                    df_maq_only = df_g_filtered[df_g_filtered['tipo_operacion'].str.contains("Máquina", na=False)]
                     
-                    st.subheader("⛽ Consumo por Tipo de Combustible")
-                    comb_resumen = df_maq_only.groupby('tipo_combustible')['litros'].sum()
-                    st.bar_chart(comb_resumen)
-                    
-                    pdf_b = generar_pdf(df_maq_only)
-                    st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-                else: st.info("No hay datos de máquinas.")
+                    if not df_maq_only.empty:
+                        consumo_resumen = df_maq_only.groupby('nombre_maquina')['litros'].sum()
+                        st.bar_chart(consumo_resumen)
+                        
+                        st.subheader("Consumo por Tipo de Combustible")
+                        comb_resumen = df_maq_only.groupby('tipo_combustible')['litros'].sum()
+                        st.bar_chart(comb_resumen)
+                        
+                        pdf_b = generar_pdf(df_maq_only)
+                        st.download_button("📄 Descargar Reporte PDF (Periodo Seleccionado)", pdf_b, "Informe_Ekos.pdf")
+                    else:
+                        st.info("No hay consumo de máquinas en este periodo.")
+                else:
+                    st.warning("No hay datos en el rango de fechas seleccionado.")
             else: st.warning("Datos insuficientes.")
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e:
+            st.error(f"Error al generar gráficos: {e}")
 
 # --- TAB 4: CONFIRMACIÓN DE DATOS ---
 with tab4:
@@ -245,4 +274,3 @@ with tab4:
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
             except Exception as e: st.error(f"Error: {e}")
-
