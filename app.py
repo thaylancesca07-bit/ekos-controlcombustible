@@ -6,6 +6,8 @@ import io
 import tempfile
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
+from docx import Document
+from docx.shared import Inches
 
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
@@ -68,7 +70,7 @@ FLOTA = {
     "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0}
 }
 
-# --- 2. CLASE PDF MEJORADA ---
+# --- 2. CLASES Y FUNCIONES DE REPORTE ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
@@ -84,21 +86,55 @@ class PDF(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
-# Función para limpiar texto
 def clean_text(text):
     return str(text).encode('latin-1', 'replace').decode('latin-1')
 
-# Generar Excel real (.xlsx)
 def generar_excel(df):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Datos Ekos')
-        # Ajustar ancho de columnas (opcional, básico)
         worksheet = writer.sheets['Datos Ekos']
         worksheet.set_column('A:N', 20)
     return output.getvalue()
 
-# Generar PDF con Gráficos Integrados
+# GENERADOR DE WORD (.docx)
+def generar_word(df_data, titulo_reporte, grafico_fig=None):
+    doc = Document()
+    doc.add_heading(titulo_reporte, 0)
+    doc.add_paragraph('Generado por Sistema Ekos Control')
+    
+    # Agregar Gráfico si existe
+    if grafico_fig:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            grafico_fig.savefig(tmpfile.name, format='png')
+            doc.add_picture(tmpfile.name, width=Inches(6))
+            doc.add_paragraph('Grafico de Analisis')
+    
+    # Agregar Tabla
+    if not df_data.empty:
+        t = doc.add_table(rows=1, cols=len(df_data.columns))
+        t.style = 'Table Grid'
+        
+        # Encabezados
+        hdr_cells = t.rows[0].cells
+        for i, col_name in enumerate(df_data.columns):
+            hdr_cells[i].text = str(col_name)
+        
+        # Filas
+        for _, row in df_data.iterrows():
+            row_cells = t.add_row().cells
+            for i, item in enumerate(row):
+                # Limpiar texto para Word
+                texto_celda = str(item)
+                if isinstance(item, float):
+                    texto_celda = f"{item:.2f}"
+                row_cells[i].text = texto_celda
+                
+    # Guardar en buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
 def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tipo_grafico="barras"):
     pdf = PDF()
     pdf.add_page()
@@ -106,13 +142,11 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
     pdf.cell(0, 10, clean_text(titulo_reporte), 0, 1, 'L')
     pdf.ln(5)
     
-    # 1. Tabla de Datos
     pdf.set_font('Arial', 'B', 8)
-    # Seleccionamos columnas clave para que quepan
-    if 'Mes' in df_data.columns: # Reporte Mensual
+    if 'Mes' in df_data.columns: 
         cols = ['Mes', 'Litros', 'Prom. Real', 'Prom. Ideal', 'Estado']
         w = [30, 30, 30, 30, 40]
-    else: # Reporte General
+    else: 
         cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Comb.']
         w = [25, 55, 25, 25, 30]
 
@@ -130,7 +164,7 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
             pdf.cell(w[4], 10, clean_text(row['Estado']), 1)
         else:
             pdf.cell(w[0], 10, clean_text(row.get('codigo_maquina','')), 1)
-            pdf.cell(w[1], 10, clean_text(row.get('nombre_maquina',''))[:25], 1) # Cortar nombres largos
+            pdf.cell(w[1], 10, clean_text(row.get('nombre_maquina',''))[:25], 1)
             pdf.cell(w[2], 10, clean_text(row.get('fecha','')), 1)
             try: lts = f"{float(row['litros']):.1f}"
             except: lts = "0.0"
@@ -138,17 +172,14 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
             pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible','N/A'))[:15], 1)
         pdf.ln()
 
-    # 2. Agregar Gráfico si se solicita
     if incluir_grafico:
         pdf.add_page()
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 10, "Analisis Grafico", 0, 1, 'L')
         
-        # Crear gráfico con Matplotlib
         fig, ax = plt.subplots(figsize=(10, 6))
         
         if tipo_grafico == "anual":
-            # Gráfico de Líneas comparativo
             ax.plot(df_data['Mes'], df_data['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
             ax.plot(df_data['Mes'], df_data['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
             ax.set_title("Evolucion Anual de Rendimiento")
@@ -156,19 +187,17 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
             ax.legend()
             ax.grid(True, alpha=0.3)
         else:
-            # Gráfico de Barras (Consumo)
             ax.bar(df_data['nombre_maquina'], df_data['litros'], color='orange')
             ax.set_title("Consumo Total por Maquina")
             plt.xticks(rotation=45, ha='right')
         
         plt.tight_layout()
         
-        # Guardar en buffer temporal
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             fig.savefig(tmpfile.name, format='png')
             pdf.image(tmpfile.name, x=10, y=40, w=190)
         
-        plt.close(fig) # Cerrar para liberar memoria
+        plt.close(fig) 
 
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
@@ -176,7 +205,6 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
 
-# AÑADIDA PESTAÑA 5: MAQUINA POR MAQUINA
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
@@ -221,7 +249,6 @@ with tab1:
                 else:
                     error_lectura = False
                     media_calc = 0.0
-                    
                     if "Máquina" in operacion and lect > 0:
                         try:
                             df_hist = pd.read_csv(SHEET_URL)
@@ -288,7 +315,6 @@ with tab2:
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
                         
-                        # --- NUEVO: BOTÓN DE DESCARGA EXCEL REAL ---
                         st.markdown("### 📥 Descargas")
                         excel_data = generar_excel(df_filtrado[cols_finales])
                         st.download_button("Descargar Tabla en Excel (.xlsx)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -369,17 +395,23 @@ with tab3:
                                 "Estado": estado
                             })
                     
-                    st.dataframe(pd.DataFrame(resumen_data), use_container_width=True)
+                    df_res = pd.DataFrame(resumen_data)
+                    st.dataframe(df_res, use_container_width=True)
                     st.caption(f"Nota: Margen de tolerancia +/- {int(MARGEN_TOLERANCIA*100)}%")
                     
                     st.markdown("---")
                     st.subheader("Gráficos de Consumo")
                     st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                     
-                    # PDF CON GRÁFICO DE BARRAS INCRUSTADO
-                    pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
-                    st.download_button("📄 Descargar Reporte PDF con Gráficos", pdf_b, "Informe_Grafico.pdf")
-                else: st.info("No hay movimientos.")
+                    c_down1, c_down2 = st.columns(2)
+                    with c_down1:
+                        pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
+                        st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Grafico.pdf")
+                    with c_down2:
+                        word_b = generar_word(df_res, "Reporte Rendimiento Ekos")
+                        st.download_button("📝 Descargar Reporte Word (.docx)", word_b, "Informe_Rendimiento.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+                else: st.info("No hay movimientos en este rango.")
             else: st.warning("Sin datos.")
         except Exception as e: st.error(f"Error en reporte: {e}")
 
@@ -408,7 +440,6 @@ with tab4:
 with tab5:
     if st.text_input("PIN Analítico", type="password", key="p_maq") == ACCESS_CODE_MAESTRO:
         st.subheader("🚜 Análisis Anual: Máquina por Máquina")
-        
         try:
             df_m = pd.read_csv(SHEET_URL)
             df_m.columns = df_m.columns.str.strip().str.lower()
@@ -417,42 +448,35 @@ with tab5:
             if 'fecha' in df_m.columns:
                 df_m['fecha'] = pd.to_datetime(df_m['fecha'], errors='coerce')
 
-                # SELECCIONADORES
                 col_sel1, col_sel2 = st.columns(2)
                 with col_sel1:
-                    # Lista de máquinas disponibles en la FLOTA
                     lista_maquinas = [f"{k} - {v['nombre']}" for k,v in FLOTA.items()]
                     maq_elegida_str = st.selectbox("Seleccione Máquina:", lista_maquinas)
                     cod_maq = maq_elegida_str.split(" - ")[0]
                 with col_sel2:
                     anio_elegido = st.selectbox("Seleccione Año:", [2024, 2025, 2026], index=1)
                 
-                # PROCESAR DATOS MENSUALES
                 df_maq_anual = df_m[(df_m['codigo_maquina'] == cod_maq) & (df_m['fecha'].dt.year == anio_elegido)]
                 
                 if not df_maq_anual.empty:
                     datos_mensuales = []
                     meses_nombre = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-                    
                     ideal = FLOTA[cod_maq].get('ideal', 0.0)
                     unidad = FLOTA[cod_maq]['unidad']
                     
-                    # Iterar del mes 1 al 12
                     for mes_idx in range(1, 13):
                         df_mes = df_maq_anual[df_maq_anual['fecha'].dt.month == mes_idx]
                         litros_mes = df_mes['litros'].sum()
                         
                         prom_real_mes = 0.0
                         if litros_mes > 0:
-                            # Calcular recorrido mensual
                             df_mes['recorrido_est'] = df_mes['media'] * df_mes['litros']
                             rec_media = df_mes['recorrido_est'].sum()
                             rec_lectura = df_mes['lectura_actual'].max() - df_mes['lectura_actual'].min()
-                            
                             total_rec = max(rec_media, rec_lectura) if rec_media > 1 or rec_lectura > 0 else 0
                             
                             if unidad == 'KM': prom_real_mes = total_rec / litros_mes
-                            else: # Horas
+                            else: 
                                 if total_rec > 0: prom_real_mes = litros_mes / total_rec
 
                         estado = "-"
@@ -469,20 +493,28 @@ with tab5:
                         })
                     
                     df_resumen_mensual = pd.DataFrame(datos_mensuales)
-                    
-                    # MOSTRAR TABLA
                     st.dataframe(df_resumen_mensual, use_container_width=True)
                     
-                    # MOSTRAR GRÁFICO COMPARATIVO
                     st.subheader(f"Evolución Anual: {FLOTA[cod_maq]['nombre']}")
-                    chart_data = df_resumen_mensual.set_index('Mes')[['Promedio Real', 'Promedio Ideal']]
-                    st.line_chart(chart_data)
                     
-                    # GENERAR PDF ANUAL
-                    pdf_anual = generar_pdf_con_graficos(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", incluir_grafico=True, tipo_grafico="anual")
-                    st.download_button("📄 Descargar PDF Anual con Gráficos", pdf_anual, f"Reporte_{cod_maq}_{anio_elegido}.pdf")
-                    
-                else:
-                    st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
+                    # Crear gráfico para el reporte (Matplotlib)
+                    fig_anual, ax_anual = plt.subplots(figsize=(10, 5))
+                    ax_anual.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='blue')
+                    ax_anual.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='green')
+                    ax_anual.set_title(f"Rendimiento {anio_elegido}: {FLOTA[cod_maq]['nombre']}")
+                    ax_anual.legend()
+                    ax_anual.grid(True, alpha=0.3)
+                    plt.xticks(rotation=45)
+                    st.pyplot(fig_anual) # Mostrar en pantalla
 
+                    # Botones de descarga
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        pdf_anual = generar_pdf_con_graficos(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", incluir_grafico=True, tipo_grafico="anual")
+                        st.download_button("📄 Descargar PDF Anual", pdf_anual, f"Reporte_{cod_maq}_{anio_elegido}.pdf")
+                    with col_d2:
+                        word_anual = generar_word(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", grafico_fig=fig_anual)
+                        st.download_button("📝 Descargar Word Anual", word_anual, f"Reporte_{cod_maq}_{anio_elegido}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    
+                else: st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
         except Exception as e: st.error(f"Error al procesar: {e}")
