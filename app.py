@@ -37,7 +37,6 @@ ENCARGADOS_DATA = {
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
 # --- FLOTA CON PROMEDIOS IDEALES ---
-# Ajusta estos valores a la realidad
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
@@ -70,18 +69,25 @@ FLOTA = {
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'INFORME EJECUTIVO - CONTROL EKOS 🇵🇾', 0, 1, 'C')
+        # Limpiamos el texto del encabezado también por si acaso
+        titulo = 'INFORME EJECUTIVO - CONTROL EKOS'.encode('latin-1', 'replace').decode('latin-1')
+        subtitulo = 'Excelencia Consultora - Nueva Esperanza - Canindeyu'.encode('latin-1', 'replace').decode('latin-1')
+        self.cell(0, 10, titulo, 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 10, 'Excelencia Consultora - Nueva Esperanza - Canindeyu', 0, 1, 'C')
+        self.cell(0, 10, subtitulo, 0, 1, 'C')
         self.ln(5)
 
 def generar_pdf(df):
+    # Función interna para limpiar caracteres incompatibles
+    def clean_text(text):
+        return str(text).encode('latin-1', 'replace').decode('latin-1')
+
     pdf = PDF()
     pdf.add_page()
     pdf.set_font('Arial', 'B', 8)
     cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Combustible']
     w = [25, 50, 30, 30, 45]
-    for i, col in enumerate(cols): pdf.cell(w[i], 10, col, 1)
+    for i, col in enumerate(cols): pdf.cell(w[i], 10, clean_text(col), 1)
     pdf.ln()
     pdf.set_font('Arial', '', 8)
     for _, row in df.iterrows():
@@ -90,13 +96,13 @@ def generar_pdf(df):
         except:
             litros_val = 0.0
             
-        pdf.cell(w[0], 10, str(row['codigo_maquina']), 1)
-        pdf.cell(w[1], 10, str(row['nombre_maquina']), 1)
-        pdf.cell(w[2], 10, str(row['fecha']), 1)
+        pdf.cell(w[0], 10, clean_text(row['codigo_maquina']), 1)
+        pdf.cell(w[1], 10, clean_text(row['nombre_maquina']), 1)
+        pdf.cell(w[2], 10, clean_text(row['fecha']), 1)
         pdf.cell(w[3], 10, f"{litros_val:.1f}", 1)
-        pdf.cell(w[4], 10, str(row.get('tipo_combustible', 'N/A')), 1)
+        pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible', 'N/A')), 1)
         pdf.ln()
-    return pdf.output(dest='S').encode('latin-1')
+    return pdf.output(dest='S').encode('latin-1', 'replace') # 'replace' evita el error final
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
@@ -239,7 +245,7 @@ with tab3:
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
                 
-                st.subheader("📊 Análisis de Consumo)")
+                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
                 
                 c_g1, c_g2 = st.columns(2)
                 with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
@@ -304,6 +310,7 @@ with tab3:
                     st.subheader("Gráficos de Consumo")
                     st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                     
+                    # Llamada a generar_pdf corregida
                     pdf_b = generar_pdf(df_maq)
                     st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
                 else: st.info("No hay movimientos en este rango.")
