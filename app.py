@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import requests
+import matplotlib.pyplot as plt
+import io
+import tempfile
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
 
@@ -65,48 +68,116 @@ FLOTA = {
     "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0}
 }
 
-# --- 2. GENERADOR DE PDF ---
+# --- 2. CLASE PDF MEJORADA ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        # Limpieza de caracteres para evitar errores
         titulo = 'INFORME EJECUTIVO - CONTROL EKOS'.encode('latin-1', 'replace').decode('latin-1')
-        subtitulo = 'Excelencia Consultora - Nueva Esperanza - Canindeyu'.encode('latin-1', 'replace').decode('latin-1')
+        subtitulo = 'Excelencia Consultora - Nueva Esperanza'.encode('latin-1', 'replace').decode('latin-1')
         self.cell(0, 10, titulo, 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
         self.cell(0, 10, subtitulo, 0, 1, 'C')
         self.ln(5)
 
-def generar_pdf(df):
-    def clean_text(text):
-        return str(text).encode('latin-1', 'replace').decode('latin-1')
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
+# Función para limpiar texto
+def clean_text(text):
+    return str(text).encode('latin-1', 'replace').decode('latin-1')
+
+# Generar Excel real (.xlsx)
+def generar_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Datos Ekos')
+        # Ajustar ancho de columnas (opcional, básico)
+        worksheet = writer.sheets['Datos Ekos']
+        worksheet.set_column('A:N', 20)
+    return output.getvalue()
+
+# Generar PDF con Gráficos Integrados
+def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tipo_grafico="barras"):
     pdf = PDF()
     pdf.add_page()
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, clean_text(titulo_reporte), 0, 1, 'L')
+    pdf.ln(5)
+    
+    # 1. Tabla de Datos
     pdf.set_font('Arial', 'B', 8)
-    cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Combustible']
-    w = [25, 50, 30, 30, 45]
-    for i, col in enumerate(cols): pdf.cell(w[i], 10, clean_text(col), 1)
+    # Seleccionamos columnas clave para que quepan
+    if 'Mes' in df_data.columns: # Reporte Mensual
+        cols = ['Mes', 'Litros', 'Prom. Real', 'Prom. Ideal', 'Estado']
+        w = [30, 30, 30, 30, 40]
+    else: # Reporte General
+        cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Comb.']
+        w = [25, 55, 25, 25, 30]
+
+    for i, col in enumerate(cols):
+        pdf.cell(w[i], 10, clean_text(col), 1, 0, 'C')
     pdf.ln()
+    
     pdf.set_font('Arial', '', 8)
-    for _, row in df.iterrows():
-        try:
-            litros_val = float(row['litros'])
-        except:
-            litros_val = 0.0
-        pdf.cell(w[0], 10, clean_text(row['codigo_maquina']), 1)
-        pdf.cell(w[1], 10, clean_text(row['nombre_maquina']), 1)
-        pdf.cell(w[2], 10, clean_text(row['fecha']), 1)
-        pdf.cell(w[3], 10, f"{litros_val:.1f}", 1)
-        pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible', 'N/A')), 1)
+    for _, row in df_data.iterrows():
+        if 'Mes' in df_data.columns:
+            pdf.cell(w[0], 10, clean_text(row['Mes']), 1)
+            pdf.cell(w[1], 10, str(row['Litros']), 1)
+            pdf.cell(w[2], 10, str(row['Promedio Real']), 1)
+            pdf.cell(w[3], 10, str(row['Promedio Ideal']), 1)
+            pdf.cell(w[4], 10, clean_text(row['Estado']), 1)
+        else:
+            pdf.cell(w[0], 10, clean_text(row.get('codigo_maquina','')), 1)
+            pdf.cell(w[1], 10, clean_text(row.get('nombre_maquina',''))[:25], 1) # Cortar nombres largos
+            pdf.cell(w[2], 10, clean_text(row.get('fecha','')), 1)
+            try: lts = f"{float(row['litros']):.1f}"
+            except: lts = "0.0"
+            pdf.cell(w[3], 10, lts, 1)
+            pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible','N/A'))[:15], 1)
         pdf.ln()
+
+    # 2. Agregar Gráfico si se solicita
+    if incluir_grafico:
+        pdf.add_page()
+        pdf.set_font('Arial', 'B', 12)
+        pdf.cell(0, 10, "Analisis Grafico", 0, 1, 'L')
+        
+        # Crear gráfico con Matplotlib
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        if tipo_grafico == "anual":
+            # Gráfico de Líneas comparativo
+            ax.plot(df_data['Mes'], df_data['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
+            ax.plot(df_data['Mes'], df_data['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
+            ax.set_title("Evolucion Anual de Rendimiento")
+            ax.set_ylabel("Promedio")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+        else:
+            # Gráfico de Barras (Consumo)
+            ax.bar(df_data['nombre_maquina'], df_data['litros'], color='orange')
+            ax.set_title("Consumo Total por Maquina")
+            plt.xticks(rotation=45, ha='right')
+        
+        plt.tight_layout()
+        
+        # Guardar en buffer temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            fig.savefig(tmpfile.name, format='png')
+            pdf.image(tmpfile.name, x=10, y=40, w=190)
+        
+        plt.close(fig) # Cerrar para liberar memoria
+
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos"])
+# AÑADIDA PESTAÑA 5: MAQUINA POR MAQUINA
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
 with tab1:
@@ -144,9 +215,7 @@ with tab1:
                 lts = st.number_input("Litros", min_value=0.0, step=0.1)
                 lect = st.number_input(f"Lectura ({unidad})", min_value=0.0) if "Máquina" in operacion else 0.0
             
-            submit_registro = st.form_submit_button("✅ GUARDAR REGISTRO")
-
-            if submit_registro:
+            if st.form_submit_button("✅ GUARDAR REGISTRO"):
                 if not chofer or not act:
                     st.warning("⚠️ Completa los campos.")
                 else:
@@ -157,11 +226,9 @@ with tab1:
                         try:
                             df_hist = pd.read_csv(SHEET_URL)
                             df_hist.columns = df_hist.columns.str.strip().str.lower()
-                            # LIMPIEZA DE DATOS
                             cols_num = ['lectura_actual', 'litros', 'media']
                             for c in cols_num:
-                                if c in df_hist.columns:
-                                    df_hist[c] = pd.to_numeric(df_hist[c], errors='coerce').fillna(0)
+                                if c in df_hist.columns: df_hist[c] = pd.to_numeric(df_hist[c], errors='coerce').fillna(0)
 
                             hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
                             if not hist_maq.empty:
@@ -190,15 +257,12 @@ with tab2:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
                 if len(df.columns) > 0 and "html" in str(df.columns[0]).lower():
-                    st.error("🚨 ERROR DE PERMISOS. Pon la planilla como 'Pública - Lector'.")
+                    st.error("🚨 ERROR DE PERMISOS.")
                 else:
                     df.columns = df.columns.str.strip().str.lower()
-                    
-                    # LIMPIEZA AUTOMÁTICA
                     cols_num = ['litros', 'media', 'lectura_actual']
                     for c in cols_num:
-                        if c in df.columns:
-                            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                        if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
 
                     if 'fecha' in df.columns:
                         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
@@ -223,6 +287,12 @@ with tab2:
                         
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
+                        
+                        # --- NUEVO: BOTÓN DE DESCARGA EXCEL REAL ---
+                        st.markdown("### 📥 Descargas")
+                        excel_data = generar_excel(df_filtrado[cols_finales])
+                        st.download_button("Descargar Tabla en Excel (.xlsx)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        
                     else: st.warning("⚠️ Faltan encabezados en la planilla.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
@@ -233,12 +303,9 @@ with tab3:
         try:
             df_graph = pd.read_csv(SHEET_URL)
             df_graph.columns = df_graph.columns.str.strip().str.lower()
-            
-            # --- LIMPIEZA Y CORRECCIÓN DE TIPOS ---
             cols_num = ['litros', 'media', 'lectura_actual']
             for c in cols_num:
-                if c in df_graph.columns:
-                    df_graph[c] = pd.to_numeric(df_graph[c], errors='coerce').fillna(0)
+                if c in df_graph.columns: df_graph[c] = pd.to_numeric(df_graph[c], errors='coerce').fillna(0)
             
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
@@ -263,27 +330,19 @@ with tab3:
                             datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
                             total_litros = datos_maq['litros'].sum()
                             
-                            # --- CÁLCULO HÍBRIDO INTELIGENTE ---
-                            # 1. Intento por columna 'media' (registro a registro)
                             datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
                             total_recorrido_media = datos_maq['recorrido_est'].sum()
                             
-                            # 2. Intento por diferencia de lecturas (Rescate)
                             lectura_max = datos_maq['lectura_actual'].max()
                             lectura_min = datos_maq['lectura_actual'].min()
                             total_recorrido_lecturas = lectura_max - lectura_min
                             
-                            # Decisión: Si el cálculo por media da muy bajo (ej. 0) y el de lecturas da algo, usamos lecturas.
-                            if total_recorrido_media > 1:
-                                total_recorrido = total_recorrido_media
-                            elif total_recorrido_lecturas > 0:
-                                total_recorrido = total_recorrido_lecturas
-                            else:
-                                total_recorrido = 0
+                            if total_recorrido_media > 1: total_recorrido = total_recorrido_media
+                            elif total_recorrido_lecturas > 0: total_recorrido = total_recorrido_lecturas
+                            else: total_recorrido = 0
                             
                             unidad = FLOTA[cod]['unidad']
                             ideal = FLOTA[cod].get('ideal', 0.0)
-                            
                             promedio_real = 0.0
                             metric_label = "Unid/L"
                             
@@ -292,20 +351,14 @@ with tab3:
                                     promedio_real = total_recorrido / total_litros
                                     metric_label = "KM/L"
                                 else: 
-                                    if total_recorrido > 0:
-                                        promedio_real = total_litros / total_recorrido 
+                                    if total_recorrido > 0: promedio_real = total_litros / total_recorrido 
                                     metric_label = "L/Hora"
                             
                             estado = "N/A"
                             if ideal > 0:
                                 margen = ideal * MARGEN_TOLERANCIA
-                                min_ok = ideal - margen
-                                max_ok = ideal + margen
-                                
-                                if min_ok <= promedio_real <= max_ok:
-                                    estado = "✅ Normal"
-                                else:
-                                    estado = "⚠️ Fuera de Rango"
+                                min_ok, max_ok = ideal - margen, ideal + margen
+                                estado = "✅ Normal" if min_ok <= promedio_real <= max_ok else "⚠️ Fuera de Rango"
 
                             resumen_data.append({
                                 "Máquina": FLOTA[cod]['nombre'],
@@ -323,9 +376,10 @@ with tab3:
                     st.subheader("Gráficos de Consumo")
                     st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                     
-                    pdf_b = generar_pdf(df_maq)
-                    st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-                else: st.info("No hay movimientos en este rango.")
+                    # PDF CON GRÁFICO DE BARRAS INCRUSTADO
+                    pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
+                    st.download_button("📄 Descargar Reporte PDF con Gráficos", pdf_b, "Informe_Grafico.pdf")
+                else: st.info("No hay movimientos.")
             else: st.warning("Sin datos.")
         except Exception as e: st.error(f"Error en reporte: {e}")
 
@@ -349,3 +403,86 @@ with tab4:
                         requests.post(SCRIPT_URL, json=p)
                     st.success("✅ Sincronizado.")
             except Exception as e: st.error(f"Error: {e}")
+
+# --- TAB 5: MÁQUINA POR MÁQUINA (NUEVA) ---
+with tab5:
+    if st.text_input("PIN Analítico", type="password", key="p_maq") == ACCESS_CODE_MAESTRO:
+        st.subheader("🚜 Análisis Anual: Máquina por Máquina")
+        
+        try:
+            df_m = pd.read_csv(SHEET_URL)
+            df_m.columns = df_m.columns.str.strip().str.lower()
+            for c in ['litros', 'media', 'lectura_actual']:
+                if c in df_m.columns: df_m[c] = pd.to_numeric(df_m[c], errors='coerce').fillna(0)
+            if 'fecha' in df_m.columns:
+                df_m['fecha'] = pd.to_datetime(df_m['fecha'], errors='coerce')
+
+                # SELECCIONADORES
+                col_sel1, col_sel2 = st.columns(2)
+                with col_sel1:
+                    # Lista de máquinas disponibles en la FLOTA
+                    lista_maquinas = [f"{k} - {v['nombre']}" for k,v in FLOTA.items()]
+                    maq_elegida_str = st.selectbox("Seleccione Máquina:", lista_maquinas)
+                    cod_maq = maq_elegida_str.split(" - ")[0]
+                with col_sel2:
+                    anio_elegido = st.selectbox("Seleccione Año:", [2024, 2025, 2026], index=1)
+                
+                # PROCESAR DATOS MENSUALES
+                df_maq_anual = df_m[(df_m['codigo_maquina'] == cod_maq) & (df_m['fecha'].dt.year == anio_elegido)]
+                
+                if not df_maq_anual.empty:
+                    datos_mensuales = []
+                    meses_nombre = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+                    
+                    ideal = FLOTA[cod_maq].get('ideal', 0.0)
+                    unidad = FLOTA[cod_maq]['unidad']
+                    
+                    # Iterar del mes 1 al 12
+                    for mes_idx in range(1, 13):
+                        df_mes = df_maq_anual[df_maq_anual['fecha'].dt.month == mes_idx]
+                        litros_mes = df_mes['litros'].sum()
+                        
+                        prom_real_mes = 0.0
+                        if litros_mes > 0:
+                            # Calcular recorrido mensual
+                            df_mes['recorrido_est'] = df_mes['media'] * df_mes['litros']
+                            rec_media = df_mes['recorrido_est'].sum()
+                            rec_lectura = df_mes['lectura_actual'].max() - df_mes['lectura_actual'].min()
+                            
+                            total_rec = max(rec_media, rec_lectura) if rec_media > 1 or rec_lectura > 0 else 0
+                            
+                            if unidad == 'KM': prom_real_mes = total_rec / litros_mes
+                            else: # Horas
+                                if total_rec > 0: prom_real_mes = litros_mes / total_rec
+
+                        estado = "-"
+                        if litros_mes > 0 and ideal > 0:
+                             min_ok, max_ok = ideal * (1-MARGEN_TOLERANCIA), ideal * (1+MARGEN_TOLERANCIA)
+                             estado = "✅" if min_ok <= prom_real_mes <= max_ok else "⚠️"
+
+                        datos_mensuales.append({
+                            "Mes": meses_nombre[mes_idx-1],
+                            "Litros": round(litros_mes, 2),
+                            "Promedio Real": round(prom_real_mes, 2),
+                            "Promedio Ideal": ideal,
+                            "Estado": estado
+                        })
+                    
+                    df_resumen_mensual = pd.DataFrame(datos_mensuales)
+                    
+                    # MOSTRAR TABLA
+                    st.dataframe(df_resumen_mensual, use_container_width=True)
+                    
+                    # MOSTRAR GRÁFICO COMPARATIVO
+                    st.subheader(f"Evolución Anual: {FLOTA[cod_maq]['nombre']}")
+                    chart_data = df_resumen_mensual.set_index('Mes')[['Promedio Real', 'Promedio Ideal']]
+                    st.line_chart(chart_data)
+                    
+                    # GENERAR PDF ANUAL
+                    pdf_anual = generar_pdf_con_graficos(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", incluir_grafico=True, tipo_grafico="anual")
+                    st.download_button("📄 Descargar PDF Anual con Gráficos", pdf_anual, f"Reporte_{cod_maq}_{anio_elegido}.pdf")
+                    
+                else:
+                    st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
+
+        except Exception as e: st.error(f"Error al procesar: {e}")
