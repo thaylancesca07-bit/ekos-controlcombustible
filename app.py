@@ -16,7 +16,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=cs
 
 ACCESS_CODE_MAESTRO = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
-MARGEN_TOLERANCIA = 0.20 # 20% de margen aceptable (arriba o abajo del ideal)
+MARGEN_TOLERANCIA = 0.20 # 20% de margen
 
 # MAPEO DE COMBUSTIBLES PETROBRAS
 MAPA_COMBUSTIBLE = {
@@ -36,13 +36,13 @@ ENCARGADOS_DATA = {
 
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
-# --- FLOTA CON PROMEDIOS IDEALES (OBJETIVOS) ---
-# Ajusta estos valores según la realidad de tu operación.
+# --- FLOTA CON PROMEDIOS IDEALES ---
+# Ajusta estos valores a la realidad
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
-    "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0}, # Ajustado a aprox 10 para dar rango 8-12
+    "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0},
     "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0},
     "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
@@ -85,10 +85,15 @@ def generar_pdf(df):
     pdf.ln()
     pdf.set_font('Arial', '', 8)
     for _, row in df.iterrows():
+        try:
+            litros_val = float(row['litros'])
+        except:
+            litros_val = 0.0
+            
         pdf.cell(w[0], 10, str(row['codigo_maquina']), 1)
         pdf.cell(w[1], 10, str(row['nombre_maquina']), 1)
         pdf.cell(w[2], 10, str(row['fecha']), 1)
-        pdf.cell(w[3], 10, f"{float(row['litros']):.1f}", 1)
+        pdf.cell(w[3], 10, f"{litros_val:.1f}", 1)
         pdf.cell(w[4], 10, str(row.get('tipo_combustible', 'N/A')), 1)
         pdf.ln()
     return pdf.output(dest='S').encode('latin-1')
@@ -148,16 +153,19 @@ with tab1:
                         try:
                             df_hist = pd.read_csv(SHEET_URL)
                             df_hist.columns = df_hist.columns.str.strip().str.lower()
-                            
+                            # LIMPIEZA DE DATOS (Prevención de errores)
+                            cols_num = ['lectura_actual', 'litros', 'media']
+                            for c in cols_num:
+                                if c in df_hist.columns:
+                                    df_hist[c] = pd.to_numeric(df_hist[c], errors='coerce').fillna(0)
+
                             hist_maq = df_hist[df_hist['codigo_maquina'] == cod_f]
                             if not hist_maq.empty:
-                                # Validación: Lectura no puede ser menor a la histórica máxima
                                 ult_lectura = hist_maq['lectura_actual'].max()
                                 if lect < ult_lectura:
-                                    st.error(f"⛔ ERROR: La lectura ingresada ({lect}) es MENOR a la última registrada ({ult_lectura}). Verifique los datos.")
+                                    st.error(f"⛔ ERROR: La lectura ({lect}) es MENOR a la anterior ({ult_lectura}).")
                                     error_lectura = True
                                 else:
-                                    # Cálculo de Promedio del viaje actual
                                     recorrido = lect - ult_lectura
                                     if lts > 0: media_calc = recorrido / lts
                         except: pass 
@@ -167,7 +175,7 @@ with tab1:
                         try:
                             r = requests.post(SCRIPT_URL, json=payload)
                             if r.status_code == 200: st.balloons(); st.success(f"¡Guardado! Promedio calculado: {media_calc:.2f}")
-                            else: st.error("Error en permisos del Script.")
+                            else: st.error("Error en permisos.")
                         except: st.error("Error de conexión.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
@@ -181,6 +189,13 @@ with tab2:
                     st.error("🚨 ERROR DE PERMISOS. Pon la planilla como 'Pública - Lector'.")
                 else:
                     df.columns = df.columns.str.strip().str.lower()
+                    
+                    # LIMPIEZA AUTOMÁTICA DE DATOS
+                    cols_num = ['litros', 'media', 'lectura_actual']
+                    for c in cols_num:
+                        if c in df.columns:
+                            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+
                     if 'fecha' in df.columns:
                         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                         
@@ -195,7 +210,6 @@ with tab2:
 
                         st.markdown("---")
                         st.subheader("📋 Historial de Movimientos")
-                        
                         c_date1, c_date2 = st.columns(2)
                         with c_date1: f_ini = st.date_input("Fecha Inicio:", date.today() - timedelta(days=30))
                         with c_date2: f_fin = st.date_input("Fecha Fin:", date.today())
@@ -205,7 +219,7 @@ with tab2:
                         
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
-                    else: st.warning("⚠️ Faltan encabezados en la Fila 1 de la planilla.")
+                    else: st.warning("⚠️ Faltan encabezados en la planilla.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
 
@@ -216,12 +230,17 @@ with tab3:
             df_graph = pd.read_csv(SHEET_URL)
             df_graph.columns = df_graph.columns.str.strip().str.lower()
             
+            # --- LIMPIEZA CRÍTICA PARA EVITAR ERROR 'int' + 'str' ---
+            cols_num = ['litros', 'media']
+            for c in cols_num:
+                if c in df_graph.columns:
+                    df_graph[c] = pd.to_numeric(df_graph[c], errors='coerce').fillna(0)
+            
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
                 
-                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
+                st.subheader("📊 Análisis de Consumo)")
                 
-                # Filtros
                 c_g1, c_g2 = st.columns(2)
                 with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
                 with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin_r")
@@ -229,11 +248,9 @@ with tab3:
                 mask_g = (df_graph['fecha'].dt.date >= g_ini) & (df_graph['fecha'].dt.date <= g_fin)
                 df_g = df_graph.loc[mask_g]
                 
-                # Solo máquinas
                 df_maq = df_g[df_g['tipo_operacion'].str.contains("Máquina", na=False)]
                 
                 if not df_maq.empty:
-                    # Preparar tabla de resumen
                     resumen_data = []
                     maquinas_activas = df_maq['codigo_maquina'].unique()
                     
@@ -242,8 +259,6 @@ with tab3:
                             datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
                             total_litros = datos_maq['litros'].sum()
                             
-                            # Recuperamos "recorrido" aproximado = media * litros
-                            # para recalcular el promedio ponderado del periodo
                             datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
                             total_recorrido = datos_maq['recorrido_est'].sum()
                             
@@ -257,16 +272,11 @@ with tab3:
                                 if unidad == 'KM':
                                     promedio_real = total_recorrido / total_litros
                                     metric_label = "KM/L"
-                                else: # HORAS
-                                    # En la base se guarda como Horas/Litro? O L/Hora?
-                                    # La lógica de guardado fue: media = recorrido (Horas) / litros
-                                    # Entonces 'media' es Horas por Litro.
-                                    # Para reporte de L/Hora (que es más común), invertimos:
+                                else: 
                                     if total_recorrido > 0:
-                                        promedio_real = total_litros / total_recorrido # L/Hora
+                                        promedio_real = total_litros / total_recorrido 
                                     metric_label = "L/Hora"
                             
-                            # ESTADO CON MARGEN %
                             estado = "N/A"
                             if ideal > 0:
                                 margen = ideal * MARGEN_TOLERANCIA
@@ -281,15 +291,14 @@ with tab3:
                             resumen_data.append({
                                 "Máquina": FLOTA[cod]['nombre'],
                                 "Unidad": unidad,
-                                "Litros Usados": total_litros,
+                                "Litros Usados": round(total_litros, 2),
                                 f"Promedio Real ({metric_label})": round(promedio_real, 2),
                                 f"Promedio Ideal": ideal,
                                 "Estado": estado
                             })
                     
-                    # Mostrar Tabla
                     st.dataframe(pd.DataFrame(resumen_data), use_container_width=True)
-                    st.caption(f"Nota: El margen aceptable es +/- {int(MARGEN_TOLERANCIA*100)}% del ideal.")
+                    st.caption(f"Nota: Margen de tolerancia +/- {int(MARGEN_TOLERANCIA*100)}%")
                     
                     st.markdown("---")
                     st.subheader("Gráficos de Consumo")
@@ -297,7 +306,7 @@ with tab3:
                     
                     pdf_b = generar_pdf(df_maq)
                     st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Ekos.pdf")
-                else: st.info("No hay movimientos de máquinas en este rango de fechas.")
+                else: st.info("No hay movimientos en este rango.")
             else: st.warning("Sin datos.")
         except Exception as e: st.error(f"Error en reporte: {e}")
 
