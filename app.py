@@ -12,6 +12,27 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
+# ESTILOS CSS PERSONALIZADOS (Fondo Beige y Texto Azul Oscuro)
+st.markdown("""
+    <style>
+    /* Fondo General de la Aplicación */
+    .stApp {
+        background-color: #f7f7e8; /* Beige suave */
+        color: #0b0f19; /* Azul muy oscuro casi negro */
+    }
+    
+    /* Forzar color de textos generales */
+    p, div, label, h1, h2, h3, h4, h5, h6, span {
+        color: #0b0f19 !important;
+    }
+    
+    /* Ajuste para que los inputs no pierdan legibilidad */
+    .stTextInput input, .stSelectbox div, .stNumberInput input {
+        color: #0b0f19 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 
@@ -100,7 +121,7 @@ def generar_excel(df):
 def generar_word(df_data, titulo_reporte, grafico_fig=None):
     doc = Document()
     doc.add_heading(titulo_reporte, 0)
-    doc.add_paragraph('Generado por el Sistema Excelencia Consultora')
+    doc.add_paragraph('Generado por Sistema Ekos Control')
     
     if grafico_fig:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
@@ -194,9 +215,17 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾</p>", unsafe_allow_html=True)
+# SECCIÓN DE CREDITOS MODIFICADA CON FIRMA Y ESTILO
+st.markdown("""
+<p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>
+    Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 
+    <span style='font-size: 14px; font-style: italic; color: #0b0f19; margin-left: 10px;'>
+        creado por Thaylan Cesca
+    </span>
+</p>
+""", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Promedio en el Rango", "🔍 La punta de la aguja", "🚜 Máquina por Máquina"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
 with tab1:
@@ -327,7 +356,7 @@ with tab3:
             if not df_graph.empty and 'fecha' in df_graph.columns:
                 df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
                 
-                st.subheader("📊 Análisis de Rendimiento)")
+                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
                 
                 c_g1, c_g2 = st.columns(2)
                 with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
@@ -485,48 +514,49 @@ with tab5:
                     
                     df_resumen_mensual = pd.DataFrame(datos_mensuales)
                     
-                    # -----------------------------------------------------------
-                    # NUEVA VISUALIZACIÓN PREMIUM: GRÁFICOS INTERNOS EN APP
-                    # -----------------------------------------------------------
+                    # --- PANEL DE CONTROL PREMIUM ---
                     st.subheader(f"📊 Panel de Control: {FLOTA[cod_maq]['nombre']}")
                     
                     col_chart1, col_chart2 = st.columns(2)
                     
-                    # Gráfico 1: Rendimiento (Real vs Ideal)
+                    # Gráfico 1: Rendimiento
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual (Unidad/Litro)**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
+                        # Forzar fondo transparente para que se vea bien en beige
+                        fig_line.patch.set_alpha(0)
+                        ax_line.patch.set_alpha(0)
+                        
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
                         ax_line.legend()
                         ax_line.grid(True, alpha=0.3)
-                        # Rotar etiquetas eje X
                         plt.setp(ax_line.get_xticklabels(), rotation=45, ha="right")
-                        # Etiquetas de valor
                         for i, txt in enumerate(df_resumen_mensual['Promedio Real']):
                             if txt > 0: ax_line.annotate(f"{txt}", (i, txt), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=8)
                         st.pyplot(fig_line)
 
-                    # Gráfico 2: Consumo (Litros)
+                    # Gráfico 2: Consumo
                     with col_chart2:
                         st.markdown("**Consumo Total de Combustible (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
+                        # Forzar fondo transparente
+                        fig_bar.patch.set_alpha(0)
+                        ax_bar.patch.set_alpha(0)
+
                         bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
                         plt.setp(ax_bar.get_xticklabels(), rotation=45, ha="right")
-                        # Etiquetas
                         for bar in bars:
                             height = bar.get_height()
                             if height > 0: ax_bar.annotate(f'{int(height)}', xy=(bar.get_x() + bar.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
                         st.pyplot(fig_bar)
 
-                    # Tabla de datos abajo
                     st.markdown("#### Detalle Numérico")
                     st.dataframe(df_resumen_mensual, use_container_width=True)
 
-                    # Botones de descarga
                     col_d1, col_d2 = st.columns(2)
                     with col_d1:
                         pdf_anual = generar_pdf_con_graficos(df_resumen_mensual, f"Reporte Anual {anio_elegido}: {FLOTA[cod_maq]['nombre']}", incluir_grafico=True, tipo_grafico="anual")
@@ -539,4 +569,3 @@ with tab5:
                     st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
 
         except Exception as e: st.error(f"Error al procesar: {e}")
-
