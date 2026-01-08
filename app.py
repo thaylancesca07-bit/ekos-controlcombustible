@@ -12,7 +12,7 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS CORREGIDOS (Fondo Beige, Texto Azul, CAJAS BLANCAS)
+# ESTILOS CSS CORREGIDOS (Botones Blancos, Fondo Beige)
 st.markdown("""
     <style>
     /* Fondo General */
@@ -21,47 +21,68 @@ st.markdown("""
         color: #0b0f19;
     }
     
-    /* Textos Generales (Títulos, párrafos) */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown {
-        color: #0b0f19 !important;
+    /* Textos Generales */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span {
+        color: #0b0f19;
     }
 
-    /* CORRECCIÓN CRÍTICA PARA CAJAS DE TEXTO Y NUMEROS */
-    /* Fuerza el fondo blanco y texto oscuro en los inputs */
+    /* CORRECCIÓN DE INPUTS (Cajas de texto blancas) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
         color: #0b0f19 !important;
         background-color: #ffffff !important;
+        border: 1px solid #ccc;
     }
     
-    /* Fondo de los contenedores de los inputs */
-    div[data-baseweb="input"] {
-        background-color: #ffffff !important;
-        border: 1px solid #ccc !important;
-    }
-
-    /* Selectbox (Listas desplegables) */
+    /* Selectbox y Dropdowns */
     div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: #0b0f19 !important;
     }
-    
-    /* Color del texto seleccionado en dropdowns */
     .stSelectbox div[data-baseweb="select"] span {
         color: #0b0f19 !important;
     }
-
-    /* Opciones del menú desplegable */
     ul[data-baseweb="menu"] {
         background-color: #ffffff !important;
     }
     li[data-baseweb="option"] {
         color: #0b0f19 !important;
     }
-    
-    /* Métricas */
-    div[data-testid="stMetricValue"] {
-        color: #0b0f19 !important;
+
+    /* --- CORRECCIÓN DE BOTONES --- */
+    /* Botones normales y de formulario */
+    .stButton > button {
+        background-color: #0b0f19 !important; /* Fondo Azul Oscuro */
+        color: #ffffff !important; /* Texto BLANCO */
+        border: 1px solid #0b0f19 !important;
+        font-weight: bold !important;
     }
+    
+    /* Efecto al pasar el mouse (Hover) */
+    .stButton > button:hover {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border-color: #ffffff !important;
+    }
+
+    /* Forzar texto blanco dentro del botón (por si acaso) */
+    .stButton > button p {
+        color: #ffffff !important;
+    }
+    
+    /* Botones de descarga (Download Button) */
+    .stDownloadButton > button {
+        background-color: #0b0f19 !important;
+        color: #ffffff !important;
+        border: 1px solid #0b0f19 !important;
+    }
+    .stDownloadButton > button:hover {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+    }
+    .stDownloadButton > button p {
+        color: #ffffff !important;
+    }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -247,7 +268,7 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-# SECCIÓN DE CREDITOS MODIFICADA CON FIRMA Y ESTILO
+# SECCIÓN DE CREDITOS
 st.markdown("""
 <p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>
     Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 
@@ -546,6 +567,7 @@ with tab5:
                     
                     df_resumen_mensual = pd.DataFrame(datos_mensuales)
                     
+                    # --- PANEL DE CONTROL ---
                     st.subheader(f"📊 Panel de Control: {FLOTA[cod_maq]['nombre']}")
                     col_chart1, col_chart2 = st.columns(2)
                     
