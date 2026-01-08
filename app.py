@@ -12,22 +12,54 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS PERSONALIZADOS (Fondo Beige y Texto Azul Oscuro)
+# ESTILOS CSS CORREGIDOS (Fondo Beige, Texto Azul, CAJAS BLANCAS)
 st.markdown("""
     <style>
-    /* Fondo General de la Aplicación */
+    /* Fondo General */
     .stApp {
-        background-color: #f7f7e8; /* Beige suave */
-        color: #0b0f19; /* Azul muy oscuro casi negro */
+        background-color: #f7f7e8;
+        color: #0b0f19;
     }
     
-    /* Forzar color de textos generales */
-    p, div, label, h1, h2, h3, h4, h5, h6, span {
+    /* Textos Generales (Títulos, párrafos) */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown {
+        color: #0b0f19 !important;
+    }
+
+    /* CORRECCIÓN CRÍTICA PARA CAJAS DE TEXTO Y NUMEROS */
+    /* Fuerza el fondo blanco y texto oscuro en los inputs */
+    .stTextInput input, .stNumberInput input, .stDateInput input {
+        color: #0b0f19 !important;
+        background-color: #ffffff !important;
+    }
+    
+    /* Fondo de los contenedores de los inputs */
+    div[data-baseweb="input"] {
+        background-color: #ffffff !important;
+        border: 1px solid #ccc !important;
+    }
+
+    /* Selectbox (Listas desplegables) */
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
         color: #0b0f19 !important;
     }
     
-    /* Ajuste para que los inputs no pierdan legibilidad */
-    .stTextInput input, .stSelectbox div, .stNumberInput input {
+    /* Color del texto seleccionado en dropdowns */
+    .stSelectbox div[data-baseweb="select"] span {
+        color: #0b0f19 !important;
+    }
+
+    /* Opciones del menú desplegable */
+    ul[data-baseweb="menu"] {
+        background-color: #ffffff !important;
+    }
+    li[data-baseweb="option"] {
+        color: #0b0f19 !important;
+    }
+    
+    /* Métricas */
+    div[data-testid="stMetricValue"] {
         color: #0b0f19 !important;
     }
     </style>
@@ -514,19 +546,14 @@ with tab5:
                     
                     df_resumen_mensual = pd.DataFrame(datos_mensuales)
                     
-                    # --- PANEL DE CONTROL PREMIUM ---
                     st.subheader(f"📊 Panel de Control: {FLOTA[cod_maq]['nombre']}")
-                    
                     col_chart1, col_chart2 = st.columns(2)
                     
-                    # Gráfico 1: Rendimiento
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual (Unidad/Litro)**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                        # Forzar fondo transparente para que se vea bien en beige
                         fig_line.patch.set_alpha(0)
                         ax_line.patch.set_alpha(0)
-                        
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
@@ -537,14 +564,11 @@ with tab5:
                             if txt > 0: ax_line.annotate(f"{txt}", (i, txt), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=8)
                         st.pyplot(fig_line)
 
-                    # Gráfico 2: Consumo
                     with col_chart2:
                         st.markdown("**Consumo Total de Combustible (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                        # Forzar fondo transparente
                         fig_bar.patch.set_alpha(0)
                         ax_bar.patch.set_alpha(0)
-
                         bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
