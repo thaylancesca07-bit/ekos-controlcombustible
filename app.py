@@ -12,12 +12,12 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# --- ESTILOS CSS CORREGIDOS (CALENDARIOS Y TABLAS) ---
+# ESTILOS CSS (Base V44 + Corrección Calendario)
 st.markdown("""
     <style>
-    /* Fondo General */
+    /* Fondo General (Beige V44) */
     .stApp {
-        background-color: #f7f7e8;
+        background-color: #f7f7e8; 
         color: #0b0f19;
     }
     
@@ -26,35 +26,51 @@ st.markdown("""
         color: #0b0f19 !important;
     }
 
-    /* CORRECCIÓN DE INPUTS */
+    /* INPUTS (Cajas de texto blancas) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
         color: #0b0f19 !important;
         background-color: #ffffff !important;
-        border: 1px solid #a0a0a0 !important;
+        border: 1px solid #d1d1b0 !important;
         border-radius: 5px;
     }
     
-    /* --- CORRECCIÓN ESPECÍFICA PARA CALENDARIOS (DATE PICKER) --- */
-    /* Fondo del calendario desplegable */
-    div[data-baseweb="calendar"] {
+    /* Selectbox */
+    div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: #0b0f19 !important;
+        border: 1px solid #d1d1b0 !important;
     }
-    /* Botones de navegación del mes (flechas) */
-    div[data-baseweb="calendar"] button {
+    .stSelectbox div[data-baseweb="select"] span {
         color: #0b0f19 !important;
+    }
+    ul[data-baseweb="menu"] {
+        background-color: #ffffff !important;
+    }
+    li[data-baseweb="option"] {
+        color: #0b0f19 !important;
+    }
+
+    /* --- CORRECCIÓN CALENDARIO (Fondo Oscuro / Letra Clara) --- */
+    div[data-baseweb="calendar"] {
+        background-color: #2c3e50 !important; /* Mismo azul que botones */
+        color: #ffffff !important; /* Letra BLANCA */
+        border: 1px solid #0b0f19;
+    }
+    /* Botones del calendario (mes, flechas) */
+    div[data-baseweb="calendar"] button {
+        color: #ffffff !important;
     }
     /* Días del mes */
-    div[role="grid"] div {
-        color: #0b0f19 !important;
+    div[data-baseweb="calendar"] div {
+        color: #ffffff !important;
     }
     /* Día seleccionado */
     div[aria-selected="true"] {
-        background-color: #2c3e50 !important;
+        background-color: #E67E22 !important; /* Naranja para resaltar selección */
         color: #ffffff !important;
     }
 
-    /* --- BOTONES --- */
+    /* --- BOTONES ELEGANTES (V44) --- */
     .stButton > button {
         background-color: #2c3e50 !important;
         color: #ffffff !important;
@@ -65,12 +81,13 @@ st.markdown("""
     }
     .stButton > button:hover {
         background-color: #34495e !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important;
     }
     .stButton > button p {
         color: #ffffff !important;
     }
     
-    /* Botones de descarga */
+    /* Botones de Descarga */
     .stDownloadButton > button {
         background-color: #2c3e50 !important;
         color: #ffffff !important;
@@ -79,6 +96,14 @@ st.markdown("""
     }
     .stDownloadButton > button p {
         color: #ffffff !important;
+    }
+
+    /* Estilo para las Tablas (V44 Beige) */
+    div[data-testid="stDataFrame"] {
+        background-color: #fffcf0 !important;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -242,24 +267,15 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
         plt.close(fig) 
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
-# --- FUNCIÓN DE ESTILO DE TABLA CON BORDES VISIBLES ---
 def estilo_tabla(df):
     return df.style.set_properties(**{
-        'background-color': '#fffcf0', # Beige muy suave
+        'background-color': '#fffcf0', 
         'color': 'black',
-        'border': '1px solid #a0a0a0', # Borde GRIS VISIBLE
-        'font-family': 'Arial'
-    }).set_table_styles([
-        {'selector': 'th', 'props': [
-            ('background-color', '#e5e3d5'), # Beige más oscuro para encabezados
-            ('color', 'black'),
-            ('font-weight', 'bold'),
-            ('border', '1px solid #a0a0a0') # Borde encabezado
-        ]},
-        {'selector': 'td', 'props': [
-            ('border', '1px solid #a0a0a0') # Borde celdas
-        ]}
-    ])
+        'border-color': '#e0e0e0'
+    }).set_table_styles([{
+        'selector': 'th',
+        'props': [('background-color', '#f2f0e4'), ('color', 'black'), ('font-weight', 'bold')]
+    }])
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
