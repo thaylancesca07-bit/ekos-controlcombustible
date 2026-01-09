@@ -13,89 +13,6 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# --- ESTILOS CSS (TU DISEÑO BEIGE PREFERIDO) ---
-st.markdown("""
-    <style>
-    /* Fondo General Beige */
-    .stApp {
-        background-color: #f7f7e8; 
-        color: #0b0f19;
-    }
-    
-    /* Textos Generales */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span, .stMetricLabel {
-        color: #0b0f19 !important;
-    }
-
-    /* INPUTS (Blancos con borde) */
-    .stTextInput input, .stNumberInput input, .stDateInput input {
-        color: #0b0f19 !important;
-        background-color: #ffffff !important;
-        border: 1px solid #a0a0a0 !important;
-        border-radius: 5px;
-    }
-    
-    /* Selectbox */
-    div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #0b0f19 !important;
-        border: 1px solid #a0a0a0 !important;
-    }
-    .stSelectbox div[data-baseweb="select"] span {
-        color: #0b0f19 !important;
-    }
-    ul[data-baseweb="menu"] {
-        background-color: #ffffff !important;
-    }
-    li[data-baseweb="option"] {
-        color: #0b0f19 !important;
-    }
-
-    /* CALENDARIO (Oscuro para contraste) */
-    div[data-baseweb="calendar"] {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border: 1px solid #0b0f19;
-    }
-    div[data-baseweb="calendar"] button {
-        color: #ffffff !important;
-    }
-    div[role="grid"] div {
-        color: #ffffff !important;
-    }
-    div[aria-selected="true"] {
-        background-color: #E67E22 !important;
-        color: #ffffff !important;
-    }
-
-    /* BOTONES (Azul Oscuro Elegante) */
-    .stButton > button, .stDownloadButton > button {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: bold !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
-    }
-    .stButton > button:hover, .stDownloadButton > button:hover {
-        background-color: #34495e !important;
-        box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important;
-    }
-    .stButton > button p, .stDownloadButton > button p {
-        color: #ffffff !important;
-    }
-
-    /* TABLAS (Fondo Beige Claro) */
-    div[data-testid="stDataFrame"] {
-        background-color: #fffcf0 !important;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
-        border: 1px solid #d1d1b0;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # URL DEL SCRIPT DE GOOGLE
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
@@ -183,7 +100,7 @@ def estilo_tabla(df):
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("""<p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido en Excelencia Consultora Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
@@ -225,7 +142,7 @@ with tab1: # REGISTRO
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
+with tab2: # AUDITORÍA (CORREGIDO: Negativos + Emojis + Indicador Verde)
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -234,10 +151,10 @@ with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                 
-                # FECHAS: dayfirst=True para evitar errores con fechas latinas
+                # FORZAMOS FORMATO DÍA/MES/AÑO PARA EVITAR ERRORES DE LECTURA
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
                 
-                # CALCULO 25 MES PASADO
+                # CÁLCULO DEL DÍA 25 DEL MES ANTERIOR
                 hoy = date.today()
                 primer_dia_este_mes = hoy.replace(day=1)
                 ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
@@ -248,22 +165,25 @@ with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
                 cols = st.columns(4)
                 
                 for i, b in enumerate(BARRILES_LISTA):
-                    # STOCK REAL (PERMITE NEGATIVOS)
-                    # Usamos .sum() directamente, si es vacío da 0.0
+                    # CÁLCULO TOTAL (ENTRADAS - SALIDAS)
+                    # .sum() devuelve 0.0 si está vacío, permitiendo la resta correcta
                     ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     
-                    stock_real = ent_total - sal_total # Puede ser negativo
+                    # Permite negativos (no hay filtro de max(0, ...))
+                    stock_real = ent_total - sal_total
                     
-                    # ENTRADAS RECIENTES (INDICADOR VERDE)
+                    # CÁLCULO DE ENTRADAS RECIENTES (INDICADOR VERDE)
+                    # Filtra solo entradas a partir del 25 del mes pasado
                     mask_rec = (df['fecha'].dt.date >= fecha_corte)
                     df_rec = df.loc[mask_rec]
                     ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
                     
+                    # Mostrar con Emoji y Delta Verde
                     cols[i].metric(
-                        label=f"🛢️ {b}", 
+                        label=f"🛢️ {b}",  # Emoji agregado
                         value=f"{stock_real:.1f} L", 
-                        delta=f"➕ {ent_recientes:.1f} L (Entradas desde 25/{fecha_corte.month})"
+                        delta=f"➕ {ent_recientes:.1f} L (Desde 25/{fecha_corte.month})" # Indicador verde restaurado
                     )
                 
                 st.markdown("---"); st.subheader("📅 Historial")
@@ -273,8 +193,7 @@ with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    # Estilo con 1 decimal
-                    st.dataframe(estilo_tabla(dff[cols_ver].sort_values(by='fecha', ascending=False)).format({"litros": "{:.1f}"}), use_container_width=True)
+                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
                     df_maq = dff[dff['tipo_operacion'].str.contains("Máquina", na=False)]
@@ -293,7 +212,6 @@ with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
                                     "Promedio": prom
                                 })
                         df_res = pd.DataFrame(res)
-                        # Formato 1 decimal en la tabla
                         st.dataframe(estilo_tabla(df_res).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                         st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                         
@@ -333,6 +251,7 @@ with tab3: # VERIFICACIÓN
                     else: return "❓ Sobrante en Sistema"
 
                 m['Estado'] = m.apply(clasificar, axis=1)
+                
                 m['Fecha_F'] = m['Fecha'].combine_first(m['fecha'])
                 m['Resp_F'] = m['Resp'].combine_first(m['responsable_cargo'])
                 m['Comb_F'] = m['Comb'].combine_first(m['tipo_combustible'])
@@ -345,7 +264,6 @@ with tab3: # VERIFICACIÓN
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                # Formato 1 decimal
                 st.dataframe(estilo_tabla(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado'])), use_container_width=True)
                 
                 st.markdown("---")
@@ -390,17 +308,8 @@ with tab4: # MÁQUINA
                 dr = pd.DataFrame(res)
                 st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
-                # Gráficos con fondo beige suave
-                fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                fig_line.patch.set_facecolor('#fffcf0'); ax_line.set_facecolor('#fffcf0')
-                ax_line.plot(dr['Mes'], dr['Promedio'], marker='o'); ax_line.set_title("Rendimiento")
-                c1.pyplot(fig_line)
-                
-                fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                fig_bar.patch.set_facecolor('#fffcf0'); ax_bar.set_facecolor('#fffcf0')
-                ax_bar.bar(dr['Mes'], dr['Litros'], color='orange'); ax_bar.set_title("Consumo")
-                c2.pyplot(fig_bar)
-
+                c1.line_chart(dr.set_index('Mes')['Promedio'])
+                c2.bar_chart(dr.set_index('Mes')['Litros'])
                 st.dataframe(estilo_tabla(dr).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
