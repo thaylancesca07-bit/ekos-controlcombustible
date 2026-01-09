@@ -13,9 +13,8 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# URL del Script de Google (Backend)
+# URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
-# ID de la Planilla (Base de Datos)
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
@@ -125,7 +124,6 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
     pdf.ln(5)
     pdf.set_font('Arial', 'B', 8)
     
-    # Auto-detect columns
     cols = list(df_data.columns)
     w_col = 190 / len(cols) if len(cols) > 0 else 30
     
@@ -180,6 +178,7 @@ st.markdown("""
 <hr>
 """, unsafe_allow_html=True)
 
+# NUEVA ESTRUCTURA DE PESTAÑAS (FUSIONADAS)
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
@@ -264,7 +263,6 @@ with tab2:
                 if 'fecha' in df.columns:
                     df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                     
-                    # 1. STOCK ACTUAL
                     st.subheader("📦 Stock Actual en Barriles")
                     tipo_audit = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                     cb = st.columns(4)
@@ -275,8 +273,7 @@ with tab2:
                     
                     st.markdown("---")
                     
-                    # 2. FILTRO GLOBAL
-                    st.subheader("📅 Filtro de Periodo")
+                    st.subheader("📅 Filtro de Periodo (Historial y Gráficos)")
                     c_date1, c_date2 = st.columns(2)
                     with c_date1: f_ini = st.date_input("Desde:", date.today() - timedelta(days=30))
                     with c_date2: f_fin = st.date_input("Hasta:", date.today())
@@ -285,15 +282,13 @@ with tab2:
                     df_filtrado = df.loc[mask]
                     
                     if not df_filtrado.empty:
-                        # 3. TABLA HISTORIAL
                         st.subheader("📋 Detalle de Movimientos")
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
                         
                         st.markdown("---")
                         
-                        # 4. GRÁFICOS
-                        st.subheader("📊 Análisis Gráfico")
+                        st.subheader("📊 Informe Gráfico y Rendimiento")
                         df_maq = df_filtrado[df_filtrado['tipo_operacion'].str.contains("Máquina", na=False)]
                         
                         if not df_maq.empty:
@@ -306,6 +301,7 @@ with tab2:
                                     total_litros = datos_maq['litros'].sum()
                                     datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
                                     total_recorrido = datos_maq['recorrido_est'].sum()
+                                    
                                     if total_recorrido < 1:
                                         total_recorrido = datos_maq['lectura_actual'].max() - datos_maq['lectura_actual'].min()
 
@@ -313,6 +309,7 @@ with tab2:
                                     ideal = FLOTA[cod].get('ideal', 0.0)
                                     promedio_real = 0.0
                                     metric_label = "Unid/L"
+                                    
                                     if total_litros > 0:
                                         if unidad == 'KM': promedio_real = total_recorrido / total_litros; metric_label = "KM/L"
                                         else: 
@@ -341,17 +338,24 @@ with tab2:
                             
                             st.markdown("### 📥 Centro de Descargas")
                             col_down1, col_down2, col_down3 = st.columns(3)
+                            
                             with col_down1:
                                 excel_data = generar_excel(df_filtrado[cols_finales])
                                 st.download_button("📊 Descargar Historial (Excel)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            
                             with col_down2:
                                 pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
                                 st.download_button("📄 Descargar Informe (PDF)", pdf_b, "Informe_Grafico.pdf")
+                                
                             with col_down3:
                                 word_b = generar_word(df_res, "Reporte Rendimiento Ekos")
                                 st.download_button("📝 Descargar Informe (Word)", word_b, "Informe_Rendimiento.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                        else: st.info("No hubo consumo de máquinas en este periodo.")
-                    else: st.warning("No hay datos en el rango seleccionado.")
+                        
+                        else:
+                            st.info("No hubo consumo de máquinas en este periodo para generar gráficos.")
+                            
+                    else: st.warning("No hay datos en el rango de fechas seleccionado.")
+                        
                 else: st.warning("⚠️ Faltan encabezados.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
@@ -375,7 +379,13 @@ with tab3:
                 
                 # 2. CARGAR DATOS FACTURA (PETROBRAS)
                 if archivo_p.name.endswith('.csv'):
-                    df_p = pd.read_csv(archivo_p, header=0, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"])
+                    try:
+                        # Intento 1: Separador ; (Común en LATAM)
+                        df_p = pd.read_csv(archivo_p, sep=';', header=0, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"], engine='python')
+                    except:
+                        # Intento 2: Separador , (Estándar)
+                        archivo_p.seek(0)
+                        df_p = pd.read_csv(archivo_p, sep=',', header=0, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"])
                 else:
                     df_p = pd.read_excel(archivo_p, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"])
                 
@@ -383,15 +393,13 @@ with tab3:
                 df_p['Combustible'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 
                 # 3. AGRUPAR PARA COMPARAR
-                # Agrupar Ekos por Fecha y Tipo
                 ekos_agg = df_ekos.groupby([df_ekos['fecha'].dt.date, 'tipo_combustible'])['litros'].sum().reset_index()
                 ekos_agg.columns = ['Fecha', 'Combustible', 'Litros_Ekos']
                 
-                # Agrupar Factura por Fecha y Tipo
                 factura_agg = df_p.groupby([df_p['Fecha'].dt.date, 'Combustible'])['Litros'].sum().reset_index()
                 factura_agg.columns = ['Fecha', 'Combustible', 'Litros_Factura']
                 
-                # 4. UNIR TABLAS (MERGE)
+                # 4. UNIR Y CALCULAR DIFERENCIA
                 df_comparativo = pd.merge(ekos_agg, factura_agg, on=['Fecha', 'Combustible'], how='outer').fillna(0)
                 df_comparativo['Diferencia'] = df_comparativo['Litros_Ekos'] - df_comparativo['Litros_Factura']
                 df_comparativo = df_comparativo.sort_values(by='Fecha', ascending=False)
@@ -400,7 +408,7 @@ with tab3:
                 st.subheader("📊 Cuadro Comparativo")
                 st.dataframe(df_comparativo, use_container_width=True)
                 
-                # 6. DESCARGAS DEL COMPARATIVO
+                # 6. DESCARGAS
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
                     excel_comp = generar_excel(df_comparativo, "Comparativo")
@@ -411,7 +419,7 @@ with tab3:
 
                 st.markdown("---")
                 
-                # 7. ALMACENAMIENTO (SINCRONIZAR)
+                # 7. SINCRONIZACIÓN SEGURA
                 st.subheader("☁️ Almacenamiento en Nube")
                 st.warning("⚠️ Esta acción guardará cada registro de la factura en la base de datos de Ekos.")
                 
@@ -440,8 +448,7 @@ with tab3:
                             success_count += 1
                         except: pass
                         
-                        # Actualizar barra
-                        time.sleep(0.1) # Pequeña pausa para estabilidad
+                        time.sleep(0.1) 
                         progress_bar.progress((index + 1) / total_rows)
                     
                     st.success(f"✅ Sincronización Completada: {success_count} registros guardados.")
@@ -512,22 +519,20 @@ with tab4:
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                        fig_line.patch.set_facecolor('white')
-                        ax_line.set_facecolor('white')
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
                         ax_line.legend()
                         ax_line.grid(True, alpha=0.3)
                         plt.setp(ax_line.get_xticklabels(), rotation=45, ha="right")
+                        for i, txt in enumerate(df_resumen_mensual['Promedio Real']):
+                            if txt > 0: ax_line.annotate(f"{txt}", (i, txt), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=8)
                         st.pyplot(fig_line)
 
                     with col_chart2:
                         st.markdown("**Consumo (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                        fig_bar.patch.set_facecolor('white')
-                        ax_bar.set_facecolor('white')
-                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='orange', alpha=0.8)
+                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
                         plt.setp(ax_bar.get_xticklabels(), rotation=45, ha="right")
