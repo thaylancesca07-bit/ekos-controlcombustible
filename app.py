@@ -13,28 +13,9 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS (DISEÑO BEIGE)
-st.markdown("""
-    <style>
-    .stApp { background-color: #f7f7e8; color: #0b0f19; }
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span, .stMetricLabel { color: #0b0f19 !important; }
-    .stTextInput input, .stNumberInput input, .stDateInput input { color: #0b0f19 !important; background-color: #ffffff !important; border: 1px solid #a0a0a0 !important; border-radius: 5px; }
-    div[data-baseweb="select"] > div { background-color: #ffffff !important; color: #0b0f19 !important; border: 1px solid #a0a0a0 !important; }
-    .stSelectbox div[data-baseweb="select"] span { color: #0b0f19 !important; }
-    ul[data-baseweb="menu"] { background-color: #ffffff !important; }
-    li[data-baseweb="option"] { color: #0b0f19 !important; }
-    div[data-baseweb="calendar"] { background-color: #2c3e50 !important; color: #ffffff !important; border: 1px solid #0b0f19; }
-    div[data-baseweb="calendar"] button { color: #ffffff !important; }
-    div[role="grid"] div { color: #ffffff !important; }
-    div[aria-selected="true"] { background-color: #E67E22 !important; color: #ffffff !important; }
-    .stButton > button, .stDownloadButton > button { background-color: #2c3e50 !important; color: #ffffff !important; border: none !important; border-radius: 8px !important; font-weight: bold !important; box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important; }
-    .stButton > button:hover, .stDownloadButton > button:hover { background-color: #34495e !important; box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important; }
-    .stButton > button p, .stDownloadButton > button p { color: #ffffff !important; }
-    div[data-testid="stDataFrame"] { background-color: #fffcf0 !important; padding: 10px; border-radius: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); border: 1px solid #d1d1b0; }
-    </style>
-""", unsafe_allow_html=True)
+# (SE ELIMINÓ EL BLOQUE DE ESTILOS CSS PARA VOLVER AL COLOR ORIGINAL)
 
-# URL DEL SCRIPT
+# URL DEL SCRIPT DE GOOGLE
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
@@ -89,11 +70,13 @@ FLOTA = {
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
-        self.cell(0, 10, 'INFORME EKOS', 0, 1, 'C'); self.ln(5)
+        self.cell(0, 10, 'INFORME EKOS', 0, 1, 'C')
+        self.ln(5)
 def clean_text(text): return str(text).encode('latin-1', 'replace').decode('latin-1')
 def generar_excel(df, sheet_name='Datos'):
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name=sheet_name)
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
     return output.getvalue()
 def generar_pdf_con_graficos(df, titulo, inc_graf=False, tipo="barras"):
     pdf = PDF(); pdf.add_page(); pdf.set_font('Arial', 'B', 12)
@@ -114,11 +97,10 @@ def generar_word(df, titulo):
             row_cells = t.add_row().cells
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
-def estilo_tabla(df): return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido en Excelencia Consultora Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
@@ -159,7 +141,7 @@ with tab1: # REGISTRO
                         "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, 
                         "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, 
                         "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb, "media": mc, 
-                        "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL" # NUEVO
+                        "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL"
                     }
                     try: requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
@@ -199,7 +181,7 @@ with tab2: # AUDITORÍA
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    st.dataframe(estilo_tabla(dff[cols_ver].sort_values(by='fecha', ascending=False)).format({"litros": "{:.1f}"}), use_container_width=True)
+                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
                     if 'tipo_operacion' in dff.columns:
@@ -215,7 +197,7 @@ with tab2: # AUDITORÍA
                                     prom = rec/l if l>0 else 0
                                     res.append({"Máquina": FLOTA[cod]['nombre'], "Litros": round(l, 1), "Promedio": round(prom, 1)})
                             df_res = pd.DataFrame(res)
-                            st.dataframe(estilo_tabla(df_res).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                            st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                             
                             st.markdown("### 📥 Descargas")
@@ -227,7 +209,7 @@ with tab2: # AUDITORÍA
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
 
-with tab3: # VERIFICACIÓN (COMPLETA)
+with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
@@ -267,7 +249,7 @@ with tab3: # VERIFICACIÓN (COMPLETA)
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                st.dataframe(estilo_tabla(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado'])), use_container_width=True)
+                st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
                 
                 st.markdown("---")
                 if st.button("🚀 SINCRONIZAR REPORTE COMPLETO"):
@@ -288,7 +270,7 @@ with tab3: # VERIFICACIÓN (COMPLETA)
                             "tipo_combustible": str(r['Comb_F']), 
                             "media": 0, 
                             "estado_conciliacion": r['Estado'],
-                            "fuente_dato": "PETROBRAS_IMPORT" # NUEVO
+                            "fuente_dato": "PETROBRAS_IMPORT"
                         }
                         try: requests.post(SCRIPT_URL, json=p); ok += 1
                         except: pass
@@ -327,21 +309,25 @@ with tab4: # MÁQUINA
                 dr = pd.DataFrame(res)
                 st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
+                
+                # Gráficos con fondo blanco estándar
                 fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                fig_line.patch.set_facecolor('#fffcf0'); ax_line.set_facecolor('#fffcf0')
-                ax_line.plot(dr['Mes'], dr['Promedio'], marker='o'); ax_line.set_title("Rendimiento")
+                fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
+                ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
+                ax_line.set_title("Rendimiento"); ax_line.legend(); ax_line.grid(True, alpha=0.3)
                 c1.pyplot(fig_line)
                 
                 fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                fig_bar.patch.set_facecolor('#fffcf0'); ax_bar.set_facecolor('#fffcf0')
-                ax_bar.bar(dr['Mes'], dr['Litros'], color='orange'); ax_bar.set_title("Consumo")
+                fig_bar.patch.set_facecolor('white'); ax_bar.set_facecolor('white')
+                ax_bar.bar(dr['Mes'], dr['Litros'], color='orange')
+                ax_bar.set_title("Consumo (Litros)")
                 c2.pyplot(fig_bar)
 
-                st.dataframe(estilo_tabla(dr).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
                 c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-        
+
