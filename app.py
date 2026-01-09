@@ -12,8 +12,6 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# (SE HA ELIMINADO TODO EL BLOQUE CSS PARA VOLVER AL COLOR ORIGINAL)
-
 # URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
@@ -66,6 +64,7 @@ FLOTA = {
     "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0}
 }
 
+# --- 2. GENERADORES DE REPORTE ---
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
@@ -123,14 +122,17 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
     pdf.cell(0, 10, clean_text(titulo_reporte), 0, 1, 'L')
     pdf.ln(5)
     pdf.set_font('Arial', 'B', 8)
+    
     if 'Mes' in df_data.columns: 
         cols = ['Mes', 'Litros', 'Prom. Real', 'Prom. Ideal', 'Estado']
         w = [30, 30, 30, 30, 40]
     else: 
         cols = ['Codigo', 'Nombre', 'Fecha', 'Litros', 'Comb.']
         w = [25, 55, 25, 25, 30]
+
     for i, col in enumerate(cols): pdf.cell(w[i], 10, clean_text(col), 1, 0, 'C')
     pdf.ln()
+    
     pdf.set_font('Arial', '', 8)
     for _, row in df_data.iterrows():
         if 'Mes' in df_data.columns:
@@ -148,14 +150,15 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
             pdf.cell(w[3], 10, lts, 1)
             pdf.cell(w[4], 10, clean_text(row.get('tipo_combustible','N/A'))[:15], 1)
         pdf.ln()
+
     if incluir_grafico:
         pdf.add_page()
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 10, "Analisis Grafico", 0, 1, 'L')
         fig, ax = plt.subplots(figsize=(10, 6))
-        # Fondo blanco para reportes impresos
         fig.patch.set_facecolor('white')
         ax.set_facecolor('white')
+        
         if tipo_grafico == "anual":
             ax.plot(df_data['Mes'], df_data['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
             ax.plot(df_data['Mes'], df_data['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
@@ -167,6 +170,7 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
             ax.bar(df_data['nombre_maquina'], df_data['litros'], color='orange')
             ax.set_title("Consumo Total por Maquina")
             plt.xticks(rotation=45, ha='right')
+        
         plt.tight_layout()
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             fig.savefig(tmpfile.name, format='png')
@@ -176,7 +180,6 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-# Mantenemos tu firma
 st.markdown("""
 <p style='font-size: 18px; color: gray; margin-top: -20px;'>
     Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 
@@ -187,8 +190,10 @@ st.markdown("""
 <hr>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
+# NUEVA ESTRUCTURA DE PESTAÑAS (FUSIONADAS)
+tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
+# --- TAB 1: REGISTRO ---
 with tab1:
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -197,6 +202,7 @@ with tab1:
 
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+        
         if encargado_sel == "Auditoria":
             op_barril, op_origen = BARRILES_LISTA, BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
         else:
@@ -255,138 +261,129 @@ with tab1:
                         except: st.error("Error de conexión.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
+# --- TAB 2: AUDITORÍA (TODO JUNTO) ---
 with tab2:
     if st.text_input("PIN Maestro Auditoría", type="password", key="p_aud") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                if len(df.columns) > 0 and "html" in str(df.columns[0]).lower(): st.error("🚨 ERROR DE PERMISOS.")
-                else:
-                    df.columns = df.columns.str.strip().str.lower()
-                    cols_num = ['litros', 'media', 'lectura_actual']
-                    for c in cols_num:
-                        if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-                    if 'fecha' in df.columns:
-                        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
-                        
-                        st.subheader("📦 Verificación de Stock (Total Histórico)")
-                        tipo_audit = st.radio("¿Qué combustible desea verificar?", TIPOS_COMBUSTIBLE, horizontal=True)
-                        cb = st.columns(4)
-                        for i, b in enumerate(BARRILES_LISTA):
-                            ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                            sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
-                            cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
-
-                        st.markdown("---")
-                        st.subheader("📋 Historial de Movimientos")
-                        c_date1, c_date2 = st.columns(2)
-                        with c_date1: f_ini = st.date_input("Fecha Inicio:", date.today() - timedelta(days=30))
-                        with c_date2: f_fin = st.date_input("Fecha Fin:", date.today())
-                        
-                        mask = (df['fecha'].dt.date >= f_ini) & (df['fecha'].dt.date <= f_fin)
-                        df_filtrado = df.loc[mask]
+                df.columns = df.columns.str.strip().str.lower()
+                cols_num = ['litros', 'media', 'lectura_actual']
+                for c in cols_num:
+                    if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                
+                if 'fecha' in df.columns:
+                    df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                    
+                    # 1. STOCK ACTUAL (No depende de la fecha filtrada, muestra la realidad HOY)
+                    st.subheader("📦 Stock Actual en Barriles")
+                    tipo_audit = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
+                    cb = st.columns(4)
+                    for i, b in enumerate(BARRILES_LISTA):
+                        ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                        sal = df[(df['origen'] == b) & (df['tipo_combustible'] == tipo_audit)]['litros'].sum()
+                        cb[i].metric(b, f"{ent - sal:.1f} L", f"Entradas: {ent:.0f}")
+                    
+                    st.markdown("---")
+                    
+                    # 2. FILTRO DE FECHAS GLOBAL PARA ESTA PESTAÑA
+                    st.subheader("📅 Filtro de Periodo (Historial y Gráficos)")
+                    c_date1, c_date2 = st.columns(2)
+                    with c_date1: f_ini = st.date_input("Desde:", date.today() - timedelta(days=30))
+                    with c_date2: f_fin = st.date_input("Hasta:", date.today())
+                    
+                    mask = (df['fecha'].dt.date >= f_ini) & (df['fecha'].dt.date <= f_fin)
+                    df_filtrado = df.loc[mask]
+                    
+                    if not df_filtrado.empty:
+                        # 3. TABLA DE HISTORIAL
+                        st.subheader("📋 Detalle de Movimientos")
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
-                        
                         st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
                         
-                        st.markdown("### 📥 Descargas")
-                        excel_data = generar_excel(df_filtrado[cols_finales])
-                        st.download_button("Descargar Tabla en Excel (.xlsx)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    else: st.warning("⚠️ Faltan encabezados.")
+                        st.markdown("---")
+                        
+                        # 4. INFORME GRÁFICO (Integrado aquí)
+                        st.subheader("📊 Informe Gráfico y Rendimiento")
+                        
+                        # Cálculo de Rendimiento
+                        df_maq = df_filtrado[df_filtrado['tipo_operacion'].str.contains("Máquina", na=False)]
+                        
+                        if not df_maq.empty:
+                            resumen_data = []
+                            maquinas_activas = df_maq['codigo_maquina'].unique()
+                            
+                            for cod in maquinas_activas:
+                                if cod in FLOTA:
+                                    datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
+                                    total_litros = datos_maq['litros'].sum()
+                                    datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
+                                    total_recorrido = datos_maq['recorrido_est'].sum()
+                                    
+                                    # Fallback con diferencia de lecturas si media es 0
+                                    if total_recorrido < 1:
+                                        total_recorrido = datos_maq['lectura_actual'].max() - datos_maq['lectura_actual'].min()
+
+                                    unidad = FLOTA[cod]['unidad']
+                                    ideal = FLOTA[cod].get('ideal', 0.0)
+                                    promedio_real = 0.0
+                                    metric_label = "Unid/L"
+                                    
+                                    if total_litros > 0:
+                                        if unidad == 'KM': promedio_real = total_recorrido / total_litros; metric_label = "KM/L"
+                                        else: 
+                                            if total_recorrido > 0: promedio_real = total_litros / total_recorrido; metric_label = "L/Hora"
+                                    
+                                    estado = "N/A"
+                                    if ideal > 0:
+                                        margen = ideal * MARGEN_TOLERANCIA
+                                        min_ok, max_ok = ideal - margen, ideal + margen
+                                        estado = "✅ Normal" if min_ok <= promedio_real <= max_ok else "⚠️ Fuera de Rango"
+
+                                    resumen_data.append({
+                                        "Máquina": FLOTA[cod]['nombre'],
+                                        "Unidad": unidad,
+                                        "Litros Usados": round(total_litros, 2),
+                                        f"Promedio Real ({metric_label})": round(promedio_real, 2),
+                                        f"Promedio Ideal": ideal,
+                                        "Estado": estado
+                                    })
+                            
+                            df_res = pd.DataFrame(resumen_data)
+                            st.dataframe(df_res, use_container_width=True)
+                            
+                            # Gráficos
+                            st.markdown("##### Consumo Total del Periodo")
+                            st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
+                            
+                            # 5. ÁREA DE DESCARGAS (TODO JUNTO)
+                            st.markdown("### 📥 Centro de Descargas")
+                            col_down1, col_down2, col_down3 = st.columns(3)
+                            
+                            with col_down1:
+                                excel_data = generar_excel(df_filtrado[cols_finales])
+                                st.download_button("📊 Descargar Historial (Excel)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            
+                            with col_down2:
+                                pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
+                                st.download_button("📄 Descargar Informe (PDF)", pdf_b, "Informe_Grafico.pdf")
+                                
+                            with col_down3:
+                                word_b = generar_word(df_res, "Reporte Rendimiento Ekos")
+                                st.download_button("📝 Descargar Informe (Word)", word_b, "Informe_Rendimiento.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                        
+                        else:
+                            st.info("No hubo consumo de máquinas en este periodo para generar gráficos.")
+                            
+                    else:
+                        st.warning("No hay datos en el rango de fechas seleccionado.")
+                        
+                else: st.warning("⚠️ Faltan encabezados.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
 
+# --- TAB 3: VERIFICACIÓN (Antes Confirmación) ---
 with tab3:
-    if st.text_input("PIN Gerencia", type="password", key="p_ger") == ACCESS_CODE_MAESTRO:
-        try:
-            df_graph = pd.read_csv(SHEET_URL)
-            df_graph.columns = df_graph.columns.str.strip().str.lower()
-            cols_num = ['litros', 'media', 'lectura_actual']
-            for c in cols_num:
-                if c in df_graph.columns: df_graph[c] = pd.to_numeric(df_graph[c], errors='coerce').fillna(0)
-            
-            if not df_graph.empty and 'fecha' in df_graph.columns:
-                df_graph['fecha'] = pd.to_datetime(df_graph['fecha'], errors='coerce')
-                st.subheader("📊 Análisis de Rendimiento (Con Margen de Tolerancia)")
-                c_g1, c_g2 = st.columns(2)
-                with c_g1: g_ini = st.date_input("Desde:", date.today() - timedelta(days=30), key="g_ini_r")
-                with c_g2: g_fin = st.date_input("Hasta:", date.today(), key="g_fin_r")
-                mask_g = (df_graph['fecha'].dt.date >= g_ini) & (df_graph['fecha'].dt.date <= g_fin)
-                df_g = df_graph.loc[mask_g]
-                df_maq = df_g[df_g['tipo_operacion'].str.contains("Máquina", na=False)]
-                
-                if not df_maq.empty:
-                    resumen_data = []
-                    maquinas_activas = df_maq['codigo_maquina'].unique()
-                    for cod in maquinas_activas:
-                        if cod in FLOTA:
-                            datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
-                            total_litros = datos_maq['litros'].sum()
-                            datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
-                            total_recorrido_media = datos_maq['recorrido_est'].sum()
-                            lectura_max = datos_maq['lectura_actual'].max()
-                            lectura_min = datos_maq['lectura_actual'].min()
-                            total_recorrido_lecturas = lectura_max - lectura_min
-                            
-                            if total_recorrido_media > 1: total_recorrido = total_recorrido_media
-                            elif total_recorrido_lecturas > 0: total_recorrido = total_recorrido_lecturas
-                            else: total_recorrido = 0
-                            
-                            unidad = FLOTA[cod]['unidad']
-                            ideal = FLOTA[cod].get('ideal', 0.0)
-                            promedio_real = 0.0
-                            metric_label = "Unid/L"
-                            
-                            if total_litros > 0:
-                                if unidad == 'KM': promedio_real = total_recorrido / total_litros; metric_label = "KM/L"
-                                else: 
-                                    if total_recorrido > 0: promedio_real = total_litros / total_recorrido; metric_label = "L/Hora"
-                            
-                            estado = "N/A"
-                            if ideal > 0:
-                                margen = ideal * MARGEN_TOLERANCIA
-                                min_ok, max_ok = ideal - margen, ideal + margen
-                                estado = "✅ Normal" if min_ok <= promedio_real <= max_ok else "⚠️ Fuera de Rango"
-
-                            resumen_data.append({
-                                "Máquina": FLOTA[cod]['nombre'],
-                                "Unidad": unidad,
-                                "Litros Usados": round(total_litros, 2),
-                                f"Promedio Real ({metric_label})": round(promedio_real, 2),
-                                f"Promedio Ideal": ideal,
-                                "Estado": estado
-                            })
-                    
-                    df_res = pd.DataFrame(resumen_data)
-                    st.dataframe(df_res, use_container_width=True)
-                    st.caption(f"Nota: Margen de tolerancia +/- {int(MARGEN_TOLERANCIA*100)}%")
-                    
-                    st.markdown("---")
-                    st.subheader("Gráficos de Consumo")
-                    
-                    fig_cons, ax_cons = plt.subplots(figsize=(10, 4))
-                    data_cons = df_maq.groupby('nombre_maquina')['litros'].sum()
-                    bars = ax_cons.bar(data_cons.index, data_cons.values, color='#E67E22')
-                    ax_cons.set_title("Litros Totales por Máquina")
-                    ax_cons.tick_params(axis='x', rotation=45)
-                    for bar in bars:
-                        height = bar.get_height()
-                        ax_cons.annotate(f'{int(height)}', xy=(bar.get_x() + bar.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
-                    st.pyplot(fig_cons)
-                    
-                    c_down1, c_down2 = st.columns(2)
-                    with c_down1:
-                        pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
-                        st.download_button("📄 Descargar Reporte PDF", pdf_b, "Informe_Grafico.pdf")
-                    with c_down2:
-                        word_b = generar_word(df_res, "Reporte Rendimiento Ekos")
-                        st.download_button("📝 Descargar Reporte Word (.docx)", word_b, "Informe_Rendimiento.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-
-                else: st.info("No hay movimientos.")
-            else: st.warning("Sin datos.")
-        except Exception as e: st.error(f"Error: {e}")
-
-with tab4:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Lado a Lado: Ekos vs Petrobras")
         archivo_p = st.file_uploader("Subir Archivo Petrobras (Excel o CSV)", type=["xlsx", "csv"])
@@ -406,7 +403,8 @@ with tab4:
                     st.success("✅ Sincronizado.")
             except Exception as e: st.error(f"Error: {e}")
 
-with tab5:
+# --- TAB 4: MÁQUINA POR MÁQUINA ---
+with tab4:
     if st.text_input("PIN Analítico", type="password", key="p_maq") == ACCESS_CODE_MAESTRO:
         st.subheader("🚜 Análisis Anual: Máquina por Máquina")
         try:
@@ -469,9 +467,6 @@ with tab5:
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                        # Fondo transparente para la app por defecto
-                        fig_line.patch.set_alpha(0)
-                        ax_line.patch.set_alpha(0)
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
                         ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
@@ -485,8 +480,6 @@ with tab5:
                     with col_chart2:
                         st.markdown("**Consumo (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                        fig_bar.patch.set_alpha(0)
-                        ax_bar.patch.set_alpha(0)
                         bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
