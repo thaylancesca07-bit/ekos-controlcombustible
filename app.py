@@ -13,8 +13,6 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# (SIN ESTILOS CSS PERSONALIZADOS - VOLVEMOS AL ORIGINAL)
-
 # URL DEL SCRIPT DE GOOGLE
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
@@ -152,7 +150,8 @@ with tab2: # AUDITORÍA
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
-                st.subheader("📦 Stock"); ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
+                st.subheader("📦 Stock")
+                ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 cols = st.columns(4)
                 for i, b in enumerate(BARRILES_LISTA):
                     ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
@@ -164,97 +163,92 @@ with tab2: # AUDITORÍA
                 dff = df[(df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)]
                 
                 if not dff.empty:
-                    cf = [c for c in ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo'] if c in df.columns]
-                    st.dataframe(dff[cf].sort_values(by='fecha', ascending=False), use_container_width=True)
+                    st.subheader("📋 Detalle")
+                    cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
+                    # Mostrar tabla redondeada a 1 decimal
+                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    st.subheader("📊 Gráficos")
-                    st.bar_chart(dff[dff['tipo_operacion'].str.contains("Máquina", na=False)].groupby('nombre_maquina')['litros'].sum())
-                    
-                    st.markdown("### 📥 Descargas")
-                    c1, c2, c3 = st.columns(3)
-                    c1.download_button("Excel", generar_excel(dff[cf]), "Historial.xlsx")
-                    c2.download_button("PDF", generar_pdf_con_graficos(dff[cf], "Reporte"), "Reporte.pdf")
-                    c3.download_button("Word", generar_word(dff[cf], "Reporte"), "Reporte.docx")
+                    st.subheader("📊 Rendimiento")
+                    df_maq = dff[dff['tipo_operacion'].str.contains("Máquina", na=False)]
+                    if not df_maq.empty:
+                        res = []
+                        for cod in df_maq['codigo_maquina'].unique():
+                            if cod in FLOTA:
+                                dm = df_maq[df_maq['codigo_maquina'] == cod]
+                                l = dm['litros'].sum()
+                                rec = (dm['media']*dm['litros']).sum()
+                                if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
+                                prom = rec/l if l>0 else 0
+                                res.append({
+                                    "Máquina": FLOTA[cod]['nombre'],
+                                    "Litros": round(l, 1), # Redondeo a 1 decimal
+                                    "Promedio": round(prom, 1) # Redondeo a 1 decimal
+                                })
+                        df_res = pd.DataFrame(res)
+                        st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                        st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
+                        
+                        st.markdown("### 📥 Descargas")
+                        c1, c2, c3 = st.columns(3)
+                        c1.download_button("Excel", generar_excel(dff[cols_ver]), "Historial.xlsx")
+                        c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
+                        c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
 
-with tab3: # VERIFICACIÓN (COMPLETA)
+with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
-        
         if up:
             try:
-                # 1. LEER EKOS
                 dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
                 dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce')
                 dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
-                dfe['resp'] = dfe['responsable_cargo'].str.strip().str.upper()
-                dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['resp'] + "_" + dfe['litros'].astype(int).astype(str)
+                dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
-                # 2. LEER PETROBRAS
                 if up.name.endswith('.csv'): 
                     try: dfp = pd.read_csv(up, sep=';', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"], engine='python')
                     except: up.seek(0); dfp = pd.read_csv(up, sep=',', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 else: dfp = pd.read_excel(up, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 
                 dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce')
-                dfp['Resp'] = dfp['Resp'].astype(str).str.strip().str.upper()
                 dfp['Litros'] = pd.to_numeric(dfp['Litros'], errors='coerce').fillna(0)
-                dfp['KEY'] = dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'] + "_" + dfp['Litros'].astype(int).astype(str)
+                dfp['KEY'] = dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'].astype(str).str.strip().str.upper() + "_" + dfp['Litros'].astype(int).astype(str)
 
-                # 3. MERGE TOTAL
                 m = pd.merge(dfp, dfe, on='KEY', how='outer', indicator=True)
                 
-                # 4. CLASIFICAR
                 def clasificar(r):
                     if r['_merge'] == 'both': return "✅ Correcto"
                     elif r['_merge'] == 'left_only': return "⚠️ Faltante en Sistema"
-                    else: return "❓ Sobrante en Sistema (No en Factura)"
+                    else: return "❓ Sobrante en Sistema"
 
-                m['Estado_Conciliacion'] = m.apply(clasificar, axis=1)
+                m['Estado'] = m.apply(clasificar, axis=1)
                 
-                # UNIFICAR COLUMNAS PARA MOSTRAR
-                m['Fecha_Final'] = m['Fecha'].combine_first(m['fecha'])
-                m['Litros_Final'] = m['Litros'].combine_first(m['litros'])
-                m['Responsable_Final'] = m['Resp'].combine_first(m['resp'])
-                m['Combustible_Final'] = m['Comb'].combine_first(m['tipo_combustible'])
+                m['Fecha_F'] = m['Fecha'].combine_first(m['fecha'])
+                m['Resp_F'] = m['Resp'].combine_first(m['responsable_cargo'])
+                m['Comb_F'] = m['Comb'].combine_first(m['tipo_combustible'])
+                m['Litros_F'] = m['Litros'].combine_first(m['litros'])
                 
-                final_view = m[['Fecha_Final', 'Responsable_Final', 'Combustible_Final', 'Litros_Final', 'Estado_Conciliacion']].sort_values(by='Fecha_Final', ascending=False)
+                fv = m[['Fecha_F', 'Resp_F', 'Comb_F', 'Litros_F', 'Estado']].sort_values(by='Fecha_F', ascending=False)
                 
-                # COLORES ESTADO
                 def color(val):
                     if "Correcto" in val: return 'background-color: #d4edda; color: black'
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                st.dataframe(final_view.style.applymap(color, subset=['Estado_Conciliacion']), use_container_width=True)
+                # Mostrar tabla con 1 decimal
+                st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
                 
-                # 5. SINCRONIZAR TODO
                 st.markdown("---")
                 if st.button("🚀 SINCRONIZAR REPORTE COMPLETO"):
-                    bar = st.progress(0); n = len(final_view); ok = 0
-                    for i, r in final_view.iterrows():
-                        p = {
-                            "target_sheet": "Facturas_Petrobras", # IMPORTANTE: ESTO VA A LA HOJA NUEVA
-                            "fecha": str(r['Fecha_Final']),
-                            "tipo_operacion": "CONCILIACION",
-                            "codigo_maquina": "PETRO-F",
-                            "nombre_maquina": "Reporte",
-                            "origen": "Petrobras",
-                            "chofer": "N/A",
-                            "responsable_cargo": str(r['Responsable_Final']),
-                            "actividad": "Auditoria",
-                            "lectura_actual": 0,
-                            "litros": float(r['Litros_Final']),
-                            "tipo_combustible": str(r['Combustible_Final']),
-                            "media": 0,
-                            "estado_conciliacion": r['Estado_Conciliacion']
-                        }
+                    bar = st.progress(0); n = len(fv); ok = 0
+                    for i, r in fv.iterrows():
+                        p = {"target_sheet": "Facturas_Petrobras", "fecha": str(r['Fecha_F']), "tipo_operacion": "CONCILIACION", "codigo_maquina": "PETRO-F", "nombre_maquina": "Reporte", "origen": "Petrobras", "chofer": "N/A", "responsable_cargo": str(r['Resp_F']), "actividad": "Auditoria", "lectura_actual": 0, "litros": float(r['Litros_F']), "tipo_combustible": str(r['Comb_F']), "media": 0, "estado_conciliacion": r['Estado']}
                         try: requests.post(SCRIPT_URL, json=p); ok += 1
                         except: pass
                         time.sleep(0.1); bar.progress((i+1)/n)
-                    st.success(f"✅ Sincronizado: {ok} registros a la hoja 'Facturas_Petrobras'.")
+                    st.success(f"✅ Sincronizado: {ok} registros.")
 
             except Exception as e: st.error(f"Error: {e}")
 
@@ -279,19 +273,20 @@ with tab4: # MÁQUINA
                     dm = dy[dy['fecha'].dt.month == i]
                     l = dm['litros'].sum()
                     if l > 0:
-                        rec = dm['media'] * dm['litros']
-                        tot = rec.sum()
-                        if tot < 1: tot = dm['lectura_actual'].max() - dm['lectura_actual'].min()
-                        pr = tot/l if FLOTA[cod]['unidad'] == 'KM' else l/tot if tot > 0 else 0
+                        rec = (dm['media']*dm['litros']).sum()
+                        if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
+                        pr = rec/l if FLOTA[cod]['unidad'] == 'KM' else l/rec if rec > 0 else 0
                     else: pr = 0
-                    res.append({"Mes": mn[i-1], "Litros": round(l,2), "Promedio": round(pr,2)})
+                    # Redondeo aquí
+                    res.append({"Mes": mn[i-1], "Litros": round(l, 1), "Promedio": round(pr, 1)})
                 
                 dr = pd.DataFrame(res)
                 st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
                 c1.line_chart(dr.set_index('Mes')['Promedio'])
                 c2.bar_chart(dr.set_index('Mes')['Litros'])
-                st.dataframe(dr, use_container_width=True)
+                # Tabla formateada
+                st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
                 c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
