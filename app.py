@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import io
 import tempfile
 import time
+import base64
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
 from docx import Document
@@ -130,7 +131,8 @@ with tab1: # REGISTRO
             else:
                 lect = 0.0 # Valor automático para barriles
             # ----------------------------------------------------
-
+            st.markdown("---")
+            foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
             if st.form_submit_button("✅ GUARDAR"):
                 if not chofer or not act: st.warning("Completa todo.")
                 else:
@@ -143,11 +145,24 @@ with tab1: # REGISTRO
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
                                 if lect > ult and lts > 0: mc = (lect - ult) / lts
                     except: pass
+                  # --- PROCESAR FOTO ---
+                    img_str, img_name, img_mime = "", "", ""
+                    if foto is not None:
+                        try:
+                            img_bytes = foto.read()
+                            img_str = base64.b64encode(img_bytes).decode('utf-8')
+                            img_name = f"EVIDENCIA_{fecha}_{encargado_sel}.jpg"
+                            img_mime = foto.type
+                        except: pass
+                    # ---------------------
+
                     pl = {
                         "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, 
                         "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, 
                         "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb, "media": mc,
-                        "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL"
+                        "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL",
+                        # CAMPOS NUEVOS PARA LA FOTO:
+                        "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime
                     }
                     try: 
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
@@ -322,3 +337,4 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
