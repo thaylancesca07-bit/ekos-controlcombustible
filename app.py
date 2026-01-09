@@ -95,8 +95,6 @@ def generar_word(df, titulo):
             row_cells = t.add_row().cells
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
-def estilo_tabla(df):
-    return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
@@ -142,7 +140,7 @@ with tab1: # REGISTRO
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
+with tab2: # AUDITORÍA
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -150,35 +148,15 @@ with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
                 df.columns = df.columns.str.strip().str.lower()
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
-                # CORRECCIÓN DE FECHAS PARA PARAGUAY (DD/MM/YYYY)
-                # dayfirst=True es clave para que pandas entienda 02/01 como 2 de Enero y no 1 de Febrero
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
-                
-                # --- CALCULO EXACTO 25 MES PASADO ---
-                hoy = date.today()
-                primer_dia_este_mes = hoy.replace(day=1)
-                ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
-                fecha_corte = ultimo_dia_mes_ant.replace(day=25)
-                # ------------------------------------
-
-                st.subheader("📦 Stock Actual")
+                st.subheader("📦 Stock")
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 cols = st.columns(4)
-                
                 for i, b in enumerate(BARRILES_LISTA):
-                    # Stock Real (Total Historico)
-                    ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    stock_real = ent_total - sal_total
-                    
-                    # Entradas Recientes (Desde el 25 del mes pasado)
-                    # Filtramos: Es entrada al barril (codigo_maquina == barril) AND Fecha >= Corte
-                    mask_rec = (df['fecha'].dt.date >= fecha_corte)
-                    df_rec = df.loc[mask_rec]
-                    ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
-                    
-                    cols[i].metric(label=f"🛢️ {b}", value=f"{stock_real:.1f} L", delta=f"➕ {ent_recientes:.1f} L (Entradas desde 25/{fecha_corte.month})")
+                    ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    cols[i].metric(b, f"{ent-sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
@@ -187,6 +165,7 @@ with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
+                    # Mostrar tabla redondeada a 1 decimal
                     st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
@@ -202,8 +181,8 @@ with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
                                 prom = rec/l if l>0 else 0
                                 res.append({
                                     "Máquina": FLOTA[cod]['nombre'],
-                                    "Litros": round(l, 1),
-                                    "Promedio": round(prom, 1)
+                                    "Litros": round(l, 1), # Redondeo a 1 decimal
+                                    "Promedio": round(prom, 1) # Redondeo a 1 decimal
                                 })
                         df_res = pd.DataFrame(res)
                         st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
@@ -217,25 +196,23 @@ with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
 
-with tab3: # VERIFICACIÓN (COMPLETA)
+with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
         if up:
             try:
-                # 1. LEER EKOS (Con Corrección de Fecha)
                 dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
-                dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
+                dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce')
                 dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
                 dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
-                # 2. LEER PETROBRAS
                 if up.name.endswith('.csv'): 
                     try: dfp = pd.read_csv(up, sep=';', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"], engine='python')
                     except: up.seek(0); dfp = pd.read_csv(up, sep=',', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 else: dfp = pd.read_excel(up, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 
-                dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
+                dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce')
                 dfp['Litros'] = pd.to_numeric(dfp['Litros'], errors='coerce').fillna(0)
                 dfp['KEY'] = dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'].astype(str).str.strip().str.upper() + "_" + dfp['Litros'].astype(int).astype(str)
 
@@ -247,6 +224,7 @@ with tab3: # VERIFICACIÓN (COMPLETA)
                     else: return "❓ Sobrante en Sistema"
 
                 m['Estado'] = m.apply(clasificar, axis=1)
+                
                 m['Fecha_F'] = m['Fecha'].combine_first(m['fecha'])
                 m['Resp_F'] = m['Resp'].combine_first(m['responsable_cargo'])
                 m['Comb_F'] = m['Comb'].combine_first(m['tipo_combustible'])
@@ -259,6 +237,7 @@ with tab3: # VERIFICACIÓN (COMPLETA)
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
+                # Mostrar tabla con 1 decimal
                 st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
                 
                 st.markdown("---")
@@ -273,13 +252,13 @@ with tab3: # VERIFICACIÓN (COMPLETA)
 
             except Exception as e: st.error(f"Error: {e}")
 
-with tab4: # MÁQUINA (Con corrección de fechas)
+with tab4: # MÁQUINA
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
             for c in ['litros','media','lectura_actual']: 
                 if c in dfm.columns: dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
-            dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
+            dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce')
             
             c1, c2 = st.columns(2)
             maq = c1.selectbox("Máquina", [f"{k} - {v['nombre']}" for k,v in FLOTA.items()])
@@ -298,6 +277,7 @@ with tab4: # MÁQUINA (Con corrección de fechas)
                         if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
                         pr = rec/l if FLOTA[cod]['unidad'] == 'KM' else l/rec if rec > 0 else 0
                     else: pr = 0
+                    # Redondeo aquí
                     res.append({"Mes": mn[i-1], "Litros": round(l, 1), "Promedio": round(pr, 1)})
                 
                 dr = pd.DataFrame(res)
@@ -305,6 +285,7 @@ with tab4: # MÁQUINA (Con corrección de fechas)
                 c1, c2 = st.columns(2)
                 c1.line_chart(dr.set_index('Mes')['Promedio'])
                 c2.bar_chart(dr.set_index('Mes')['Litros'])
+                # Tabla formateada
                 st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
