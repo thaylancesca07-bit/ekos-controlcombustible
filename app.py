@@ -13,6 +13,89 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
+# --- ESTILOS CSS (TU DISEÑO BEIGE PREFERIDO) ---
+st.markdown("""
+    <style>
+    /* Fondo General Beige */
+    .stApp {
+        background-color: #f7f7e8; 
+        color: #0b0f19;
+    }
+    
+    /* Textos Generales */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span, .stMetricLabel {
+        color: #0b0f19 !important;
+    }
+
+    /* INPUTS (Blancos con borde) */
+    .stTextInput input, .stNumberInput input, .stDateInput input {
+        color: #0b0f19 !important;
+        background-color: #ffffff !important;
+        border: 1px solid #a0a0a0 !important;
+        border-radius: 5px;
+    }
+    
+    /* Selectbox */
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #0b0f19 !important;
+        border: 1px solid #a0a0a0 !important;
+    }
+    .stSelectbox div[data-baseweb="select"] span {
+        color: #0b0f19 !important;
+    }
+    ul[data-baseweb="menu"] {
+        background-color: #ffffff !important;
+    }
+    li[data-baseweb="option"] {
+        color: #0b0f19 !important;
+    }
+
+    /* CALENDARIO (Oscuro para contraste) */
+    div[data-baseweb="calendar"] {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border: 1px solid #0b0f19;
+    }
+    div[data-baseweb="calendar"] button {
+        color: #ffffff !important;
+    }
+    div[role="grid"] div {
+        color: #ffffff !important;
+    }
+    div[aria-selected="true"] {
+        background-color: #E67E22 !important;
+        color: #ffffff !important;
+    }
+
+    /* BOTONES (Azul Oscuro Elegante) */
+    .stButton > button, .stDownloadButton > button {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
+    }
+    .stButton > button:hover, .stDownloadButton > button:hover {
+        background-color: #34495e !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important;
+    }
+    .stButton > button p, .stDownloadButton > button p {
+        color: #ffffff !important;
+    }
+
+    /* TABLAS (Fondo Beige Claro) */
+    div[data-testid="stDataFrame"] {
+        background-color: #fffcf0 !important;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
+        border: 1px solid #d1d1b0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # URL DEL SCRIPT DE GOOGLE
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
@@ -100,7 +183,7 @@ def estilo_tabla(df):
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
@@ -142,7 +225,7 @@ with tab1: # REGISTRO
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA (STOCK CORREGIDO PARA NEGATIVOS)
+with tab2: # AUDITORÍA CON CORRECCIONES DE CÁLCULO
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -150,9 +233,11 @@ with tab2: # AUDITORÍA (STOCK CORREGIDO PARA NEGATIVOS)
                 df.columns = df.columns.str.strip().str.lower()
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                
+                # FECHAS: dayfirst=True para evitar errores con fechas latinas
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
                 
-                # CÁLCULO FECHA DE CORTE
+                # CALCULO 25 MES PASADO
                 hoy = date.today()
                 primer_dia_este_mes = hoy.replace(day=1)
                 ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
@@ -163,28 +248,22 @@ with tab2: # AUDITORÍA (STOCK CORREGIDO PARA NEGATIVOS)
                 cols = st.columns(4)
                 
                 for i, b in enumerate(BARRILES_LISTA):
-                    # STOCK TOTAL (Entradas - Salidas)
-                    # Aseguramos que sume 0.0 si está vacío para evitar errores de NaN
-                    ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum() or 0.0
-                    sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum() or 0.0
+                    # STOCK REAL (PERMITE NEGATIVOS)
+                    # Usamos .sum() directamente, si es vacío da 0.0
+                    ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     
-                    stock_real = ent_total - sal_total
+                    stock_real = ent_total - sal_total # Puede ser negativo
                     
-                    # ENTRADAS RECIENTES (Indicador Verde)
+                    # ENTRADAS RECIENTES (INDICADOR VERDE)
                     mask_rec = (df['fecha'].dt.date >= fecha_corte)
                     df_rec = df.loc[mask_rec]
-                    ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum() or 0.0
+                    ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
                     
-                    # Determinar color del stock (Rojo si es negativo)
-                    color_delta = "normal"
-                    if stock_real < 0:
-                        color_delta = "inverse" # A veces Streamlit muestra negativo en rojo por defecto, pero esto ayuda a visualizar
-
                     cols[i].metric(
                         label=f"🛢️ {b}", 
                         value=f"{stock_real:.1f} L", 
-                        delta=f"➕ {ent_recientes:.1f} L (Desde 25/{fecha_corte.month})",
-                        delta_color="normal" # Mantiene el delta verde, el valor principal cambia auto si es negativo
+                        delta=f"➕ {ent_recientes:.1f} L (Entradas desde 25/{fecha_corte.month})"
                     )
                 
                 st.markdown("---"); st.subheader("📅 Historial")
@@ -194,7 +273,8 @@ with tab2: # AUDITORÍA (STOCK CORREGIDO PARA NEGATIVOS)
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
+                    # Estilo con 1 decimal
+                    st.dataframe(estilo_tabla(dff[cols_ver].sort_values(by='fecha', ascending=False)).format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
                     df_maq = dff[dff['tipo_operacion'].str.contains("Máquina", na=False)]
@@ -209,11 +289,12 @@ with tab2: # AUDITORÍA (STOCK CORREGIDO PARA NEGATIVOS)
                                 prom = rec/l if l>0 else 0
                                 res.append({
                                     "Máquina": FLOTA[cod]['nombre'],
-                                    "Litros": round(l, 1),
-                                    "Promedio": round(prom, 1)
+                                    "Litros": l,
+                                    "Promedio": prom
                                 })
                         df_res = pd.DataFrame(res)
-                        st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                        # Formato 1 decimal en la tabla
+                        st.dataframe(estilo_tabla(df_res).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                         st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                         
                         st.markdown("### 📥 Descargas")
@@ -264,7 +345,8 @@ with tab3: # VERIFICACIÓN
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
+                # Formato 1 decimal
+                st.dataframe(estilo_tabla(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado'])), use_container_width=True)
                 
                 st.markdown("---")
                 if st.button("🚀 SINCRONIZAR REPORTE COMPLETO"):
@@ -308,13 +390,21 @@ with tab4: # MÁQUINA
                 dr = pd.DataFrame(res)
                 st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
-                c1.line_chart(dr.set_index('Mes')['Promedio'])
-                c2.bar_chart(dr.set_index('Mes')['Litros'])
-                st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                # Gráficos con fondo beige suave
+                fig_line, ax_line = plt.subplots(figsize=(6, 4))
+                fig_line.patch.set_facecolor('#fffcf0'); ax_line.set_facecolor('#fffcf0')
+                ax_line.plot(dr['Mes'], dr['Promedio'], marker='o'); ax_line.set_title("Rendimiento")
+                c1.pyplot(fig_line)
+                
+                fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
+                fig_bar.patch.set_facecolor('#fffcf0'); ax_bar.set_facecolor('#fffcf0')
+                ax_bar.bar(dr['Mes'], dr['Litros'], color='orange'); ax_bar.set_title("Consumo")
+                c2.pyplot(fig_bar)
+
+                st.dataframe(estilo_tabla(dr).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
                 c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
