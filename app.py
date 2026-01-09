@@ -155,8 +155,11 @@ with tab1:
                     try: 
                         if "Máquina" in operacion and lect > 0:
                             df_h = pd.read_csv(SHEET_URL)
-                            # Normalización de columnas en lectura para el cálculo de media
-                            df_h.columns = df_h.columns.str.strip().str.lower().str.replace(' ', '_')
+                            # Normalización ligera de columnas
+                            df_h.columns = df_h.columns.str.strip().str.lower()
+                            # Unificación: si existe con espacio, renombrar a guion bajo
+                            if 'lectura actual' in df_h.columns: df_h.rename(columns={'lectura actual': 'lectura_actual'}, inplace=True)
+                            
                             if 'lectura_actual' in df_h.columns:
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
@@ -174,26 +177,35 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                # 1. Normalizar nombres de columnas (reemplaza espacios por guion bajo)
-                # Esto soluciona si en la hoja dice "Tipo Combustible" y el código espera "tipo_combustible"
-                df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+                # 1. Normalización de Nombres de Columnas (SOLUCIÓN AL FALLO DE LECTURA)
+                df.columns = df.columns.str.strip().str.lower()
+                
+                # Mapeo de columnas con espacio a guion bajo si existen
+                renames = {
+                    'tipo combustible': 'tipo_combustible',
+                    'codigo maquina': 'codigo_maquina',
+                    'lectura actual': 'lectura_actual',
+                    'nombre maquina': 'nombre_maquina',
+                    'responsable cargo': 'responsable_cargo'
+                }
+                df.rename(columns=renames, inplace=True)
                 
                 # 2. Convertir numéricos
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                 
-                # 3. LIMPIEZA TOTAL DE TEXTO (Soluciona "nan" y "NaN")
+                # 3. Limpieza de Texto en Columnas Clave
                 cols_txt = ['codigo_maquina', 'origen', 'tipo_combustible']
                 for c in cols_txt:
                     if c in df.columns:
-                        # Rellena vacíos con texto vacío, convierte a string, quita espacios
+                        # Convertir a string, quitar espacios y reemplazar nan
                         df[c] = df[c].fillna("").astype(str).str.strip()
-                        # Reemplaza explícitamente la palabra "nan" por vacío
                         df[c] = df[c].replace(["nan", "NaN", "None"], "")
 
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
                 st.subheader("📦 Stock Real (Entradas - Salidas)")
+                # El selectbox ahora coincidirá porque forzamos el nombre de columna correcto
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 
                 cols = st.columns(4)
@@ -205,9 +217,8 @@ with tab2:
                     
                     total_stock = ent - sal
                     
-                    color_stock = "red" if total_stock <= 0 else "green"
-                    cols[i].markdown(f"**{b}**")
-                    cols[i].markdown(f"<h2 style='color: {color_stock};'>{total_stock:.1f} L</h2>", unsafe_allow_html=True)
+                    # CORRECCIÓN: Volver al estilo original (Metric estándar)
+                    cols[i].metric(b, f"{total_stock:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
@@ -256,11 +267,14 @@ with tab3:
         if up:
             try:
                 dfe = pd.read_csv(SHEET_URL)
-                dfe.columns = dfe.columns.str.strip().str.lower().str.replace(' ', '_')
+                dfe.columns = dfe.columns.str.strip().str.lower()
+                # Unificar columnas también aquí
+                renames = {'tipo combustible': 'tipo_combustible', 'responsable cargo': 'responsable_cargo'}
+                dfe.rename(columns=renames, inplace=True)
                 
                 dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce')
                 dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
-                # Key creation needs columns to be strings explicitly
+                
                 dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].astype(str).str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
                 if up.name.endswith('.csv'): 
@@ -312,7 +326,10 @@ with tab4:
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL)
-            dfm.columns = dfm.columns.str.strip().str.lower().str.replace(' ', '_')
+            dfm.columns = dfm.columns.str.strip().str.lower()
+            if 'codigo maquina' in dfm.columns: dfm.rename(columns={'codigo maquina': 'codigo_maquina'}, inplace=True)
+            if 'lectura actual' in dfm.columns: dfm.rename(columns={'lectura actual': 'lectura_actual'}, inplace=True)
+
             for c in ['litros','media','lectura_actual']: 
                 if c in dfm.columns: dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
             dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce')
@@ -348,4 +365,3 @@ with tab4:
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
