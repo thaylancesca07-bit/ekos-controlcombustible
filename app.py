@@ -12,122 +12,95 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS DEFINITIVOS (Color Fijo Marrón Claro)
+# ESTILOS CSS (Fondo Beige, Botones Oscuros, Calendarios Legibles)
 st.markdown("""
     <style>
-    /* 1. FONDO GENERAL */
+    /* Fondo General */
     .stApp {
-        background-color: #f7f7e8; /* Beige muy suave de fondo */
-        color: #0b0f19; /* Texto oscuro */
+        background-color: #f7f7e8; 
+        color: #0b0f19;
     }
     
-    /* 2. TEXTOS GENERALES */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span, .stMetricLabel {
+    /* Textos Generales */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span {
         color: #0b0f19 !important;
     }
 
-    /* 3. INPUTS (Cajas donde escribes texto/números) */
+    /* INPUTS (Cajas de texto blancas con borde visible) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
-        background-color: #ffffff !important; /* Blanco puro */
         color: #0b0f19 !important;
-        border: 1px solid #b0a890 !important;
+        background-color: #ffffff !important;
+        border: 1px solid #a0a0a0 !important;
         border-radius: 5px;
     }
     
-    /* 4. SELECTBOX (Cajas de selección: Año, Máquina, Encargado) */
-    /* ESTADO NORMAL (Sin pasar mouse) */
+    /* Selectbox (Listas desplegables) */
     div[data-baseweb="select"] > div {
-        background-color: #e6e2d3 !important; /* MARRÓN CLARO FIJO */
+        background-color: #ffffff !important;
         color: #0b0f19 !important;
-        border: 1px solid #8c867a !important; /* Borde definido */
+        border: 1px solid #a0a0a0 !important;
     }
-    
-    /* Texto dentro del selectbox */
     .stSelectbox div[data-baseweb="select"] span {
         color: #0b0f19 !important;
     }
-    
-    /* Ícono de la flecha */
-    .stSelectbox svg {
-        fill: #0b0f19 !important;
-    }
-
-    /* MENÚ DESPLEGABLE (Las opciones al hacer clic) */
     ul[data-baseweb="menu"] {
-        background-color: #ffffff !important; /* Fondo blanco para leer bien */
-        border: 1px solid #0b0f19 !important;
+        background-color: #ffffff !important;
     }
     li[data-baseweb="option"] {
         color: #0b0f19 !important;
-        background-color: #ffffff !important;
-    }
-    /* Opción seleccionada o con mouse encima */
-    li[data-baseweb="option"]:hover, li[aria-selected="true"] {
-        background-color: #e6e2d3 !important;
-        color: #0b0f19 !important;
-        font-weight: bold;
     }
 
-    /* 5. BOTONES (Guardar, Descargar, Sincronizar) */
-    /* ESTADO NORMAL */
-    .stButton > button, .stDownloadButton > button {
-        background-color: #e6e2d3 !important; /* MARRÓN CLARO FIJO */
-        color: #0b0f19 !important; /* Texto Oscuro */
-        border: 1px solid #8c867a !important;
+    /* --- CALENDARIO (Fondo Oscuro / Letra Blanca para contraste) --- */
+    div[data-baseweb="calendar"] {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border: 1px solid #0b0f19;
+    }
+    div[data-baseweb="calendar"] button {
+        color: #ffffff !important;
+    }
+    div[role="grid"] div {
+        color: #ffffff !important;
+    }
+    div[aria-selected="true"] {
+        background-color: #E67E22 !important;
+        color: #ffffff !important;
+    }
+
+    /* --- BOTONES (Azul Oscuro con Letra Blanca - Mejor Contraste) --- */
+    .stButton > button {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border: none !important;
         border-radius: 8px !important;
         font-weight: bold !important;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
     }
+    .stButton > button:hover {
+        background-color: #34495e !important;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important;
+    }
+    .stButton > button p {
+        color: #ffffff !important;
+    }
     
-    /* ESTADO HOVER (Pasar mouse) */
-    .stButton > button:hover, .stDownloadButton > button:hover {
-        background-color: #d1ccb8 !important; /* Un poco más oscuro */
-        color: #0b0f19 !important;
-        border-color: #0b0f19 !important;
-        transform: scale(1.02); /* Pequeño efecto de zoom */
+    /* Botones de Descarga */
+    .stDownloadButton > button {
+        background-color: #2c3e50 !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
+    }
+    .stDownloadButton > button p {
+        color: #ffffff !important;
     }
 
-    /* Texto dentro del botón */
-    .stButton > button p, .stDownloadButton > button p {
-        color: #0b0f19 !important;
-    }
-
-    /* 6. CALENDARIO (Date Picker) */
-    div[data-baseweb="calendar"] {
-        background-color: #ffffff !important;
-        color: #0b0f19 !important;
-        border: 1px solid #8c867a;
-    }
-    div[data-baseweb="calendar"] button {
-        color: #0b0f19 !important; /* Flechas negras */
-    }
-    div[role="grid"] div {
-        color: #0b0f19 !important; /* Números negros */
-    }
-    div[aria-selected="true"] {
-        background-color: #e6e2d3 !important;
-        color: #0b0f19 !important;
-        font-weight: bold;
-    }
-
-    /* 7. PESTAÑAS (Tabs) */
-    button[data-baseweb="tab"] {
-        background-color: transparent !important;
-        color: #0b0f19 !important;
-    }
-    button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #e6e2d3 !important;
-        color: #0b0f19 !important;
-        border-radius: 5px 5px 0 0;
-        font-weight: bold;
-    }
-
-    /* 8. TABLAS */
+    /* Estilo para las Tablas (Fondo Beige Claro) */
     div[data-testid="stDataFrame"] {
         background-color: #fffcf0 !important;
         padding: 10px;
         border-radius: 10px;
-        border: 1px solid #b0a890;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -303,6 +276,7 @@ def estilo_tabla(df):
 
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
+# --- AQUÍ ESTÁ LA FIRMA PERSONALIZADA ---
 st.markdown("""
 <p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>
     Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 
