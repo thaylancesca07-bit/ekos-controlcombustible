@@ -142,7 +142,7 @@ with tab1: # REGISTRO
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA CON INDICADOR VERDE Y EMOJIS
+with tab2: # AUDITORÍA CON FECHAS CORREGIDAS
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -150,9 +150,12 @@ with tab2: # AUDITORÍA CON INDICADOR VERDE Y EMOJIS
                 df.columns = df.columns.str.strip().str.lower()
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
-                # --- CALCULO FECHA 25 MES PASADO ---
+                # CORRECCIÓN DE FECHAS PARA PARAGUAY (DD/MM/YYYY)
+                # dayfirst=True es clave para que pandas entienda 02/01 como 2 de Enero y no 1 de Febrero
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
+                
+                # --- CALCULO EXACTO 25 MES PASADO ---
                 hoy = date.today()
                 primer_dia_este_mes = hoy.replace(day=1)
                 ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
@@ -164,18 +167,18 @@ with tab2: # AUDITORÍA CON INDICADOR VERDE Y EMOJIS
                 cols = st.columns(4)
                 
                 for i, b in enumerate(BARRILES_LISTA):
-                    # Stock Total
+                    # Stock Real (Total Historico)
                     ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     stock_real = ent_total - sal_total
                     
                     # Entradas Recientes (Desde el 25 del mes pasado)
+                    # Filtramos: Es entrada al barril (codigo_maquina == barril) AND Fecha >= Corte
                     mask_rec = (df['fecha'].dt.date >= fecha_corte)
                     df_rec = df.loc[mask_rec]
                     ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
                     
-                    # Mostrar con Emoji y Delta Verde
-                    cols[i].metric(label=f"🛢️ {b}", value=f"{stock_real:.1f} L", delta=f"➕ {ent_recientes:.0f} L (Entradas desde 25/{fecha_corte.month})")
+                    cols[i].metric(label=f"🛢️ {b}", value=f"{stock_real:.1f} L", delta=f"➕ {ent_recientes:.1f} L (Entradas desde 25/{fecha_corte.month})")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
@@ -220,17 +223,19 @@ with tab3: # VERIFICACIÓN (COMPLETA)
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
         if up:
             try:
+                # 1. LEER EKOS (Con Corrección de Fecha)
                 dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
-                dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce')
+                dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
                 dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
                 dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
+                # 2. LEER PETROBRAS
                 if up.name.endswith('.csv'): 
                     try: dfp = pd.read_csv(up, sep=';', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"], engine='python')
                     except: up.seek(0); dfp = pd.read_csv(up, sep=',', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 else: dfp = pd.read_excel(up, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 
-                dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce')
+                dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
                 dfp['Litros'] = pd.to_numeric(dfp['Litros'], errors='coerce').fillna(0)
                 dfp['KEY'] = dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'].astype(str).str.strip().str.upper() + "_" + dfp['Litros'].astype(int).astype(str)
 
@@ -268,13 +273,13 @@ with tab3: # VERIFICACIÓN (COMPLETA)
 
             except Exception as e: st.error(f"Error: {e}")
 
-with tab4: # MÁQUINA
+with tab4: # MÁQUINA (Con corrección de fechas)
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
             for c in ['litros','media','lectura_actual']: 
                 if c in dfm.columns: dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
-            dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce')
+            dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True) # IMPORTANTE
             
             c1, c2 = st.columns(2)
             maq = c1.selectbox("Máquina", [f"{k} - {v['nombre']}" for k,v in FLOTA.items()])
@@ -307,4 +312,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
