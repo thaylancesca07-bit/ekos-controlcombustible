@@ -155,7 +155,8 @@ with tab1:
                     try: 
                         if "Máquina" in operacion and lect > 0:
                             df_h = pd.read_csv(SHEET_URL)
-                            df_h.columns = df_h.columns.str.strip().str.lower()
+                            # Normalización de columnas en lectura para el cálculo de media
+                            df_h.columns = df_h.columns.str.strip().str.lower().str.replace(' ', '_')
                             if 'lectura_actual' in df_h.columns:
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
@@ -173,35 +174,37 @@ with tab2:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                df.columns = df.columns.str.strip().str.lower()
+                # 1. Normalizar nombres de columnas (reemplaza espacios por guion bajo)
+                # Esto soluciona si en la hoja dice "Tipo Combustible" y el código espera "tipo_combustible"
+                df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+                
+                # 2. Convertir numéricos
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                 
-                # --- LIMPIEZA PROFUNDA DE TEXTO (SOLUCIONA EL "0.0") ---
-                # Esto elimina espacios vacíos invisibles en los nombres
+                # 3. LIMPIEZA TOTAL DE TEXTO (Soluciona "nan" y "NaN")
                 cols_txt = ['codigo_maquina', 'origen', 'tipo_combustible']
                 for c in cols_txt:
                     if c in df.columns:
-                        df[c] = df[c].astype(str).str.strip()
-                # -------------------------------------------------------
+                        # Rellena vacíos con texto vacío, convierte a string, quita espacios
+                        df[c] = df[c].fillna("").astype(str).str.strip()
+                        # Reemplaza explícitamente la palabra "nan" por vacío
+                        df[c] = df[c].replace(["nan", "NaN", "None"], "")
 
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
                 st.subheader("📦 Stock Real (Entradas - Salidas)")
-                # El selectbox ya funciona bien si los datos están limpios
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 
                 cols = st.columns(4)
                 for i, b in enumerate(BARRILES_LISTA):
-                    # Entradas: Llenado del Barril (Código Máquina = Barril)
+                    # Entradas
                     ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    
-                    # Salidas: Carga a Máquinas desde Barril (Origen = Barril)
+                    # Salidas
                     sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     
                     total_stock = ent - sal
                     
-                    # Color condicional: Rojo si es negativo o cero, Verde si es positivo
                     color_stock = "red" if total_stock <= 0 else "green"
                     cols[i].markdown(f"**{b}**")
                     cols[i].markdown(f"<h2 style='color: {color_stock};'>{total_stock:.1f} L</h2>", unsafe_allow_html=True)
@@ -213,10 +216,12 @@ with tab2:
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
+                    # Asegurar que existan las columnas antes de mostrar
+                    cols_existentes = [c for c in cols_ver if c in dff.columns]
+                    st.dataframe(dff[cols_existentes].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
-                    df_maq = dff[dff['tipo_operacion'].str.contains("Máquina", na=False)]
+                    df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                     if not df_maq.empty:
                         res = []
                         for cod in df_maq['codigo_maquina'].unique():
@@ -237,11 +242,11 @@ with tab2:
                         
                         st.markdown("### 📥 Descargas")
                         c1, c2, c3 = st.columns(3)
-                        c1.download_button("Excel", generar_excel(dff[cols_ver]), "Historial.xlsx")
+                        c1.download_button("Excel", generar_excel(dff[cols_existentes]), "Historial.xlsx")
                         c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
                         c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                 else: st.info("Sin datos.")
-        except Exception as e: st.error(e)
+        except Exception as e: st.error(f"Error técnico: {e}")
 
 # --- TAB 3: VERIFICACIÓN ---
 with tab3: 
@@ -250,10 +255,13 @@ with tab3:
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
         if up:
             try:
-                dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
+                dfe = pd.read_csv(SHEET_URL)
+                dfe.columns = dfe.columns.str.strip().str.lower().str.replace(' ', '_')
+                
                 dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce')
                 dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
-                dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
+                # Key creation needs columns to be strings explicitly
+                dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].astype(str).str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
                 if up.name.endswith('.csv'): 
                     try: dfp = pd.read_csv(up, sep=';', header=0, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"], engine='python')
@@ -303,7 +311,8 @@ with tab3:
 with tab4: 
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
-            dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
+            dfm = pd.read_csv(SHEET_URL)
+            dfm.columns = dfm.columns.str.strip().str.lower().str.replace(' ', '_')
             for c in ['litros','media','lectura_actual']: 
                 if c in dfm.columns: dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
             dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce')
@@ -339,3 +348,4 @@ with tab4:
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
