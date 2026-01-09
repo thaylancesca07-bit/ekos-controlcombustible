@@ -98,7 +98,7 @@ def generar_word(df, titulo):
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido en Excelencia Consultora Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
@@ -293,3 +293,4 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
