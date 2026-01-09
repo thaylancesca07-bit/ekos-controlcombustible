@@ -142,12 +142,11 @@ with tab1:
             
             lts = c2.number_input("Litros", min_value=0.0, step=0.1)
             
-            # --- CORRECCIÓN 1: Ocultar Lectura si es Barril ---
+            # --- Ocultar Lectura si es Barril ---
             if "Máquina" in operacion:
                 lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0)
             else:
                 lect = 0.0 # Valor por defecto para barriles
-            # --------------------------------------------------
 
             if st.form_submit_button("✅ GUARDAR"):
                 if not chofer or not act: st.warning("Completa todo.")
@@ -178,27 +177,34 @@ with tab2:
                 for c in ['litros', 'media', 'lectura_actual']:
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
                 
-                # Limpieza clave para que coincidan los nombres
-                if 'codigo_maquina' in df.columns: df['codigo_maquina'] = df['codigo_maquina'].astype(str).str.strip()
-                if 'origen' in df.columns: df['origen'] = df['origen'].astype(str).str.strip()
-                
+                # --- LIMPIEZA PROFUNDA DE TEXTO (SOLUCIONA EL "0.0") ---
+                # Esto elimina espacios vacíos invisibles en los nombres
+                cols_txt = ['codigo_maquina', 'origen', 'tipo_combustible']
+                for c in cols_txt:
+                    if c in df.columns:
+                        df[c] = df[c].astype(str).str.strip()
+                # -------------------------------------------------------
+
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
                 
                 st.subheader("📦 Stock Real (Entradas - Salidas)")
+                # El selectbox ya funciona bien si los datos están limpios
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 
                 cols = st.columns(4)
                 for i, b in enumerate(BARRILES_LISTA):
-                    # --- CORRECCIÓN 2: Cálculo de Stock Robusto ---
-                    # Entradas: Donde el Código Máquina es el Barril (se llenó el barril)
+                    # Entradas: Llenado del Barril (Código Máquina = Barril)
                     ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     
-                    # Salidas: Donde el Origen es el Barril (se sacó del barril)
+                    # Salidas: Carga a Máquinas desde Barril (Origen = Barril)
                     sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     
                     total_stock = ent - sal
-                    cols[i].metric(b, f"{total_stock:.1f} L")
-                    # ---------------------------------------------
+                    
+                    # Color condicional: Rojo si es negativo o cero, Verde si es positivo
+                    color_stock = "red" if total_stock <= 0 else "green"
+                    cols[i].markdown(f"**{b}**")
+                    cols[i].markdown(f"<h2 style='color: {color_stock};'>{total_stock:.1f} L</h2>", unsafe_allow_html=True)
                 
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
