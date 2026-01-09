@@ -12,98 +12,7 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS (Fondo Beige, Botones Oscuros, Calendarios Legibles)
-st.markdown("""
-    <style>
-    /* Fondo General */
-    .stApp {
-        background-color: #f7f7e8; 
-        color: #0b0f19;
-    }
-    
-    /* Textos Generales */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span {
-        color: #0b0f19 !important;
-    }
-
-    /* INPUTS (Cajas de texto blancas con borde visible) */
-    .stTextInput input, .stNumberInput input, .stDateInput input {
-        color: #0b0f19 !important;
-        background-color: #ffffff !important;
-        border: 1px solid #a0a0a0 !important;
-        border-radius: 5px;
-    }
-    
-    /* Selectbox (Listas desplegables) */
-    div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #0b0f19 !important;
-        border: 1px solid #a0a0a0 !important;
-    }
-    .stSelectbox div[data-baseweb="select"] span {
-        color: #0b0f19 !important;
-    }
-    ul[data-baseweb="menu"] {
-        background-color: #ffffff !important;
-    }
-    li[data-baseweb="option"] {
-        color: #0b0f19 !important;
-    }
-
-    /* --- CALENDARIO (Fondo Oscuro / Letra Blanca para contraste) --- */
-    div[data-baseweb="calendar"] {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border: 1px solid #0b0f19;
-    }
-    div[data-baseweb="calendar"] button {
-        color: #ffffff !important;
-    }
-    div[role="grid"] div {
-        color: #ffffff !important;
-    }
-    div[aria-selected="true"] {
-        background-color: #E67E22 !important;
-        color: #ffffff !important;
-    }
-
-    /* --- BOTONES (Azul Oscuro con Letra Blanca - Mejor Contraste) --- */
-    .stButton > button {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: bold !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
-    }
-    .stButton > button:hover {
-        background-color: #34495e !important;
-        box-shadow: 2px 2px 8px rgba(0,0,0,0.2) !important;
-    }
-    .stButton > button p {
-        color: #ffffff !important;
-    }
-    
-    /* Botones de Descarga */
-    .stDownloadButton > button {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
-    }
-    .stDownloadButton > button p {
-        color: #ffffff !important;
-    }
-
-    /* Estilo para las Tablas (Fondo Beige Claro) */
-    div[data-testid="stDataFrame"] {
-        background-color: #fffcf0 !important;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
-    }
-    </style>
-""", unsafe_allow_html=True)
+# (SE HA ELIMINADO TODO EL BLOQUE CSS PARA VOLVER AL COLOR ORIGINAL)
 
 # URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
@@ -244,17 +153,18 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
         pdf.set_font('Arial', 'B', 12)
         pdf.cell(0, 10, "Analisis Grafico", 0, 1, 'L')
         fig, ax = plt.subplots(figsize=(10, 6))
+        # Fondo blanco para reportes impresos
         fig.patch.set_facecolor('white')
         ax.set_facecolor('white')
         if tipo_grafico == "anual":
-            ax.plot(df_data['Mes'], df_data['Promedio Real'], marker='o', label='Real', color='#2E86C1', linewidth=2)
-            ax.plot(df_data['Mes'], df_data['Promedio Ideal'], linestyle='--', label='Ideal', color='#28B463', linewidth=2)
+            ax.plot(df_data['Mes'], df_data['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
+            ax.plot(df_data['Mes'], df_data['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
             ax.set_title("Evolucion Anual de Rendimiento")
             ax.set_ylabel("Promedio")
             ax.legend()
             ax.grid(True, alpha=0.3)
         else:
-            ax.bar(df_data['nombre_maquina'], df_data['litros'], color='#E67E22')
+            ax.bar(df_data['nombre_maquina'], df_data['litros'], color='orange')
             ax.set_title("Consumo Total por Maquina")
             plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
@@ -264,26 +174,17 @@ def generar_pdf_con_graficos(df_data, titulo_reporte, incluir_grafico=False, tip
         plt.close(fig) 
     return pdf.output(dest='S').encode('latin-1', 'replace')
 
-def estilo_tabla(df):
-    return df.style.set_properties(**{
-        'background-color': '#fffcf0', 
-        'color': 'black',
-        'border': '1px solid #b0a890'
-    }).set_table_styles([{
-        'selector': 'th',
-        'props': [('background-color', '#e6e2d3'), ('color', 'black'), ('font-weight', 'bold'), ('border', '1px solid #b0a890')]
-    }])
-
 # --- 3. INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-# --- AQUÍ ESTÁ LA FIRMA PERSONALIZADA ---
+# Mantenemos tu firma
 st.markdown("""
-<p style='font-size: 18px; color: #0b0f19; margin-top: -20px;'>
+<p style='font-size: 18px; color: gray; margin-top: -20px;'>
     Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 
-    <span style='font-size: 14px; font-style: italic; color: #0b0f19; margin-left: 10px;'>
+    <span style='font-size: 14px; font-style: italic; color: gray; margin-left: 10px;'>
         creado por Thaylan Cesca
     </span>
 </p>
+<hr>
 """, unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["👋 Registro Personal", "🔐 Auditoría & Stock", "📊 Informe Grafico", "🔍 Confirmación de Datos", "🚜 Máquina por Máquina"])
@@ -386,7 +287,7 @@ with tab2:
                         df_filtrado = df.loc[mask]
                         cols_finales = [c for c in ['fecha', 'nombre_maquina', 'origen', 'litros', 'tipo_combustible', 'responsable_cargo', 'media', 'lectura_actual'] if c in df.columns]
                         
-                        st.dataframe(estilo_tabla(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False)), use_container_width=True)
+                        st.dataframe(df_filtrado[cols_finales].sort_values(by='fecha', ascending=False), use_container_width=True)
                         
                         st.markdown("### 📥 Descargas")
                         excel_data = generar_excel(df_filtrado[cols_finales])
@@ -457,20 +358,17 @@ with tab3:
                             })
                     
                     df_res = pd.DataFrame(resumen_data)
-                    st.dataframe(estilo_tabla(df_res), use_container_width=True)
+                    st.dataframe(df_res, use_container_width=True)
                     st.caption(f"Nota: Margen de tolerancia +/- {int(MARGEN_TOLERANCIA*100)}%")
                     
                     st.markdown("---")
                     st.subheader("Gráficos de Consumo")
                     
                     fig_cons, ax_cons = plt.subplots(figsize=(10, 4))
-                    fig_cons.patch.set_facecolor('#fffcf0')
-                    ax_cons.set_facecolor('#fffcf0')
                     data_cons = df_maq.groupby('nombre_maquina')['litros'].sum()
                     bars = ax_cons.bar(data_cons.index, data_cons.values, color='#E67E22')
-                    ax_cons.set_title("Litros Totales por Máquina", color='#0b0f19')
-                    ax_cons.tick_params(axis='x', rotation=45, colors='#0b0f19')
-                    ax_cons.tick_params(axis='y', colors='#0b0f19')
+                    ax_cons.set_title("Litros Totales por Máquina")
+                    ax_cons.tick_params(axis='x', rotation=45)
                     for bar in bars:
                         height = bar.get_height()
                         ax_cons.annotate(f'{int(height)}', xy=(bar.get_x() + bar.get_width() / 2, height), xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=8)
@@ -500,7 +398,7 @@ with tab4:
                     df_p = pd.read_excel(archivo_p, usecols=[5, 12, 14, 15], names=["Fecha", "Responsable", "Comb_Original", "Litros"])
 
                 df_p['Comb_Ekos'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
-                st.dataframe(estilo_tabla(df_p.head()), use_container_width=True)
+                st.dataframe(df_p.head(), use_container_width=True)
                 if st.button("🚀 SINCRONIZAR"):
                     for _, r in df_p.iterrows():
                         p = {"fecha": str(r['Fecha']), "tipo_operacion": "FACTURA PETROBRAS", "codigo_maquina": "PETRO-F", "nombre_maquina": "Factura", "origen": "Surtidor", "chofer": "N/A", "responsable_cargo": str(r['Responsable']), "actividad": "Conciliación", "lectura_actual": 0, "litros": float(r['Litros']), "tipo_combustible": r['Comb_Ekos'], "fuente_dato": "PETROBRAS_OFFICIAL"}
@@ -571,10 +469,11 @@ with tab5:
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                        fig_line.patch.set_facecolor('#fffcf0')
-                        ax_line.set_facecolor('#fffcf0')
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='#2E86C1', linewidth=2)
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='#28B463', linewidth=2)
+                        # Fondo transparente para la app por defecto
+                        fig_line.patch.set_alpha(0)
+                        ax_line.patch.set_alpha(0)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
                         ax_line.legend()
                         ax_line.grid(True, alpha=0.3)
@@ -586,9 +485,9 @@ with tab5:
                     with col_chart2:
                         st.markdown("**Consumo (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                        fig_bar.patch.set_facecolor('#fffcf0')
-                        ax_bar.set_facecolor('#fffcf0')
-                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='#E67E22', alpha=0.8)
+                        fig_bar.patch.set_alpha(0)
+                        ax_bar.patch.set_alpha(0)
+                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
                         plt.setp(ax_bar.get_xticklabels(), rotation=45, ha="right")
@@ -598,7 +497,7 @@ with tab5:
                         st.pyplot(fig_bar)
 
                     st.markdown("#### Detalle Numérico")
-                    st.dataframe(estilo_tabla(df_resumen_mensual), use_container_width=True)
+                    st.dataframe(df_resumen_mensual, use_container_width=True)
 
                     col_d1, col_d2 = st.columns(2)
                     with col_d1:
