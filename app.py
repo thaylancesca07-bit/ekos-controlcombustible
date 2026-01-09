@@ -16,6 +16,7 @@ st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 # URL del Script de Google
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
+# OJO: Aquí leemos la hoja principal para los reportes
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 ACCESS_CODE_MAESTRO = "1645"
@@ -178,7 +179,6 @@ st.markdown("""
 <hr>
 """, unsafe_allow_html=True)
 
-# NUEVA ESTRUCTURA DE PESTAÑAS (FUSIONADAS)
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
 # --- TAB 1: REGISTRO ---
@@ -241,6 +241,7 @@ with tab1:
                                     if lts > 0: media_calc = recorrido / lts
                         except: pass 
                     if not error_lectura:
+                        # NOTA: Aquí target_sheet es None para que vaya a la hoja principal
                         payload = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb, "media": media_calc}
                         try:
                             r = requests.post(SCRIPT_URL, json=payload)
@@ -249,7 +250,7 @@ with tab1:
                         except: st.error("Error de conexión.")
     elif pwd_input: st.error("❌ Contraseña incorrecta.")
 
-# --- TAB 2: AUDITORÍA (TODO JUNTO) ---
+# --- TAB 2: AUDITORÍA ---
 with tab2:
     if st.text_input("PIN Maestro Auditoría", type="password", key="p_aud") == ACCESS_CODE_MAESTRO:
         try:
@@ -273,7 +274,7 @@ with tab2:
                     
                     st.markdown("---")
                     
-                    st.subheader("📅 Filtro de Periodo (Historial y Gráficos)")
+                    st.subheader("📅 Filtro de Periodo")
                     c_date1, c_date2 = st.columns(2)
                     with c_date1: f_ini = st.date_input("Desde:", date.today() - timedelta(days=30))
                     with c_date2: f_fin = st.date_input("Hasta:", date.today())
@@ -288,20 +289,18 @@ with tab2:
                         
                         st.markdown("---")
                         
-                        st.subheader("📊 Informe Gráfico y Rendimiento")
+                        st.subheader("📊 Análisis Gráfico")
                         df_maq = df_filtrado[df_filtrado['tipo_operacion'].str.contains("Máquina", na=False)]
                         
                         if not df_maq.empty:
                             resumen_data = []
                             maquinas_activas = df_maq['codigo_maquina'].unique()
-                            
                             for cod in maquinas_activas:
                                 if cod in FLOTA:
                                     datos_maq = df_maq[df_maq['codigo_maquina'] == cod]
                                     total_litros = datos_maq['litros'].sum()
                                     datos_maq['recorrido_est'] = datos_maq['media'] * datos_maq['litros']
                                     total_recorrido = datos_maq['recorrido_est'].sum()
-                                    
                                     if total_recorrido < 1:
                                         total_recorrido = datos_maq['lectura_actual'].max() - datos_maq['lectura_actual'].min()
 
@@ -309,12 +308,10 @@ with tab2:
                                     ideal = FLOTA[cod].get('ideal', 0.0)
                                     promedio_real = 0.0
                                     metric_label = "Unid/L"
-                                    
                                     if total_litros > 0:
                                         if unidad == 'KM': promedio_real = total_recorrido / total_litros; metric_label = "KM/L"
                                         else: 
                                             if total_recorrido > 0: promedio_real = total_litros / total_recorrido; metric_label = "L/Hora"
-                                    
                                     estado = "N/A"
                                     if ideal > 0:
                                         margen = ideal * MARGEN_TOLERANCIA
@@ -329,61 +326,48 @@ with tab2:
                                         f"Promedio Ideal": ideal,
                                         "Estado": estado
                                     })
-                            
                             df_res = pd.DataFrame(resumen_data)
                             st.dataframe(df_res, use_container_width=True)
-                            
                             st.markdown("##### Consumo Total del Periodo")
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                             
                             st.markdown("### 📥 Centro de Descargas")
                             col_down1, col_down2, col_down3 = st.columns(3)
-                            
                             with col_down1:
                                 excel_data = generar_excel(df_filtrado[cols_finales])
                                 st.download_button("📊 Descargar Historial (Excel)", data=excel_data, file_name="Historial_Ekos.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                            
                             with col_down2:
                                 pdf_b = generar_pdf_con_graficos(df_maq, "Informe General de Consumo", incluir_grafico=True, tipo_grafico="barras")
                                 st.download_button("📄 Descargar Informe (PDF)", pdf_b, "Informe_Grafico.pdf")
-                                
                             with col_down3:
                                 word_b = generar_word(df_res, "Reporte Rendimiento Ekos")
                                 st.download_button("📝 Descargar Informe (Word)", word_b, "Informe_Rendimiento.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                        
-                        else:
-                            st.info("No hubo consumo de máquinas en este periodo para generar gráficos.")
-                            
-                    else: st.warning("No hay datos en el rango de fechas seleccionado.")
-                        
+                        else: st.info("No hubo consumo de máquinas en este periodo.")
+                    else: st.warning("No hay datos en el rango seleccionado.")
                 else: st.warning("⚠️ Faltan encabezados.")
             else: st.info("Planilla vacía.")
         except Exception as e: st.error(f"Error técnico: {e}")
 
-# --- TAB 3: VERIFICACIÓN (COMPARATIVO REAL) ---
+# --- TAB 3: VERIFICACIÓN (SINCRONIZACIÓN A OTRA HOJA) ---
 with tab3:
     if st.text_input("PIN Conciliación", type="password", key="p_con") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Verificación: Ekos vs Factura Petrobras")
-        st.info("Sube el archivo Excel/CSV de Petrobras para compararlo con los datos del sistema.")
-        
         archivo_p = st.file_uploader("Subir Archivo Petrobras", type=["xlsx", "csv"])
         
         if archivo_p:
             try:
-                # 1. CARGAR DATOS EKOS (SISTEMA)
+                # 1. CARGAR DATOS EKOS
                 df_ekos = pd.read_csv(SHEET_URL)
                 df_ekos.columns = df_ekos.columns.str.strip().str.lower()
                 if 'fecha' in df_ekos.columns and 'litros' in df_ekos.columns:
                     df_ekos['fecha'] = pd.to_datetime(df_ekos['fecha'], errors='coerce')
                     df_ekos['litros'] = pd.to_numeric(df_ekos['litros'], errors='coerce').fillna(0)
                 
-                # 2. CARGAR DATOS FACTURA (PETROBRAS)
+                # 2. CARGAR FACTURA
                 if archivo_p.name.endswith('.csv'):
                     try:
-                        # Intento 1: Separador ; (Común en LATAM)
                         df_p = pd.read_csv(archivo_p, sep=';', header=0, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"], engine='python')
                     except:
-                        # Intento 2: Separador , (Estándar)
                         archivo_p.seek(0)
                         df_p = pd.read_csv(archivo_p, sep=',', header=0, usecols=[5, 14, 15], names=["Fecha", "Comb_Original", "Litros"])
                 else:
@@ -392,44 +376,43 @@ with tab3:
                 df_p['Fecha'] = pd.to_datetime(df_p['Fecha'], errors='coerce')
                 df_p['Combustible'] = df_p['Comb_Original'].map(MAPA_COMBUSTIBLE).fillna("Otros")
                 
-                # 3. AGRUPAR PARA COMPARAR
+                # 3. COMPARATIVO
                 ekos_agg = df_ekos.groupby([df_ekos['fecha'].dt.date, 'tipo_combustible'])['litros'].sum().reset_index()
                 ekos_agg.columns = ['Fecha', 'Combustible', 'Litros_Ekos']
                 
                 factura_agg = df_p.groupby([df_p['Fecha'].dt.date, 'Combustible'])['Litros'].sum().reset_index()
                 factura_agg.columns = ['Fecha', 'Combustible', 'Litros_Factura']
                 
-                # 4. UNIR Y CALCULAR DIFERENCIA
                 df_comparativo = pd.merge(ekos_agg, factura_agg, on=['Fecha', 'Combustible'], how='outer').fillna(0)
                 df_comparativo['Diferencia'] = df_comparativo['Litros_Ekos'] - df_comparativo['Litros_Factura']
-                df_comparativo = df_comparativo.sort_values(by='Fecha', ascending=False)
                 
-                # 5. MOSTRAR RESULTADOS
                 st.subheader("📊 Cuadro Comparativo")
                 st.dataframe(df_comparativo, use_container_width=True)
                 
-                # 6. DESCARGAS
+                # Descargas
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
                     excel_comp = generar_excel(df_comparativo, "Comparativo")
-                    st.download_button("📥 Descargar Comparativo (Excel)", data=excel_comp, file_name="Comparativo_Ekos_Petrobras.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    st.download_button("📥 Descargar Comparativo (Excel)", data=excel_comp, file_name="Comparativo.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 with col_d2:
                     pdf_comp = generar_pdf_con_graficos(df_comparativo, "Comparativo Ekos vs Petrobras")
                     st.download_button("📄 Descargar Comparativo (PDF)", pdf_comp, "Comparativo.pdf")
 
                 st.markdown("---")
                 
-                # 7. SINCRONIZACIÓN SEGURA
-                st.subheader("☁️ Almacenamiento en Nube")
-                st.warning("⚠️ Esta acción guardará cada registro de la factura en la base de datos de Ekos.")
+                # 4. SINCRONIZACIÓN A OTRA HOJA
+                st.subheader("☁️ Almacenamiento Separado")
+                st.info("ℹ️ Los datos se guardarán en la hoja 'Facturas_Petrobras' de tu Google Sheets.")
                 
-                if st.button("🚀 SINCRONIZAR FACTURA AL SISTEMA"):
+                if st.button("🚀 SINCRONIZAR A HOJA DE FACTURAS"):
                     progress_bar = st.progress(0)
                     total_rows = len(df_p)
                     success_count = 0
                     
                     for index, r in df_p.iterrows():
+                        # AQUI AGREGAMOS "target_sheet" PARA QUE EL SCRIPT SEPA DONDE GUARDAR
                         p = {
+                            "target_sheet": "Facturas_Petrobras", # <--- CLAVE PARA CAMBIAR DE HOJA
                             "fecha": str(r['Fecha']), 
                             "tipo_operacion": "FACTURA PETROBRAS", 
                             "codigo_maquina": "PETRO-F", 
@@ -451,7 +434,7 @@ with tab3:
                         time.sleep(0.1) 
                         progress_bar.progress((index + 1) / total_rows)
                     
-                    st.success(f"✅ Sincronización Completada: {success_count} registros guardados.")
+                    st.success(f"✅ Se guardaron {success_count} registros en la hoja 'Facturas_Petrobras'.")
                     
             except Exception as e: st.error(f"Error al procesar archivo: {e}")
 
@@ -519,20 +502,18 @@ with tab4:
                     with col_chart1:
                         st.markdown("**Rendimiento Mensual**")
                         fig_line, ax_line = plt.subplots(figsize=(6, 4))
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='tab:blue', linewidth=2)
-                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='tab:green', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Real'], marker='o', label='Real', color='blue', linewidth=2)
+                        ax_line.plot(df_resumen_mensual['Mes'], df_resumen_mensual['Promedio Ideal'], linestyle='--', label='Ideal', color='green', linewidth=2)
                         ax_line.set_ylabel("Rendimiento")
                         ax_line.legend()
                         ax_line.grid(True, alpha=0.3)
                         plt.setp(ax_line.get_xticklabels(), rotation=45, ha="right")
-                        for i, txt in enumerate(df_resumen_mensual['Promedio Real']):
-                            if txt > 0: ax_line.annotate(f"{txt}", (i, txt), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=8)
                         st.pyplot(fig_line)
 
                     with col_chart2:
                         st.markdown("**Consumo (Litros)**")
                         fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
-                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='tab:orange', alpha=0.8)
+                        bars = ax_bar.bar(df_resumen_mensual['Mes'], df_resumen_mensual['Litros'], color='orange', alpha=0.8)
                         ax_bar.set_ylabel("Litros")
                         ax_bar.grid(axis='y', alpha=0.3)
                         plt.setp(ax_bar.get_xticklabels(), rotation=45, ha="right")
