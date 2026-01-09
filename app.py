@@ -172,54 +172,60 @@ with tab1:
                     except: st.error("Error conexión.")
 
 # --- TAB 2: AUDITORÍA ---
-with tab2: 
+with tab2: # AUDITORÍA (CORREGIDO: Stock Negativo + Indicador Verde + Limpieza de Texto)
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
-                # 1. Normalización de Nombres de Columnas (SOLUCIÓN AL FALLO DE LECTURA)
                 df.columns = df.columns.str.strip().str.lower()
                 
-                # Mapeo de columnas con espacio a guion bajo si existen
-                renames = {
-                    'tipo combustible': 'tipo_combustible',
-                    'codigo maquina': 'codigo_maquina',
-                    'lectura actual': 'lectura_actual',
-                    'nombre maquina': 'nombre_maquina',
-                    'responsable cargo': 'responsable_cargo'
-                }
-                df.rename(columns=renames, inplace=True)
-                
-                # 2. Convertir numéricos
-                for c in ['litros', 'media', 'lectura_actual']:
-                    if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-                
-                # 3. Limpieza de Texto en Columnas Clave
-                cols_txt = ['codigo_maquina', 'origen', 'tipo_combustible']
-                for c in cols_txt:
-                    if c in df.columns:
-                        # Convertir a string, quitar espacios y reemplazar nan
-                        df[c] = df[c].fillna("").astype(str).str.strip()
-                        df[c] = df[c].replace(["nan", "NaN", "None"], "")
+                # 1. LIMPIEZA DE COLUMNAS (Vital para que reconozca los barriles y no de 0)
+                # Convertimos a texto y quitamos espacios en blanco extraños
+                if 'origen' in df.columns: 
+                    df['origen'] = df['origen'].fillna("").astype(str).str.strip()
+                if 'codigo_maquina' in df.columns: 
+                    df['codigo_maquina'] = df['codigo_maquina'].fillna("").astype(str).str.strip()
+                if 'tipo_combustible' in df.columns: 
+                    df['tipo_combustible'] = df['tipo_combustible'].fillna("").astype(str).str.strip()
 
-                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+                # 2. CONVERSIÓN NUMÉRICA
+                for c in ['litros', 'media', 'lectura_actual']:
+                    if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
                 
-                st.subheader("📦 Stock Real (Entradas - Salidas)")
-                # El selectbox ahora coincidirá porque forzamos el nombre de columna correcto
+                # 3. FECHAS (Importante dayfirst=True para Paraguay)
+                df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
+                
+                # 4. CÁLCULO FECHA CORTE (Día 25 del mes pasado)
+                hoy = date.today()
+                primer_dia_este_mes = hoy.replace(day=1)
+                ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
+                fecha_corte = ultimo_dia_mes_ant.replace(day=25)
+
+                st.subheader("📦 Stock Actual")
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
-                
                 cols = st.columns(4)
-                for i, b in enumerate(BARRILES_LISTA):
-                    # Entradas
-                    ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    # Salidas
-                    sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    
-                    total_stock = ent - sal
-                    
-                    # CORRECCIÓN: Volver al estilo original (Metric estándar)
-                    cols[i].metric(b, f"{total_stock:.1f} L")
                 
+                for i, b in enumerate(BARRILES_LISTA):
+                    # CÁLCULO STOCK REAL (Entradas - Salidas)
+                    # Sumamos todo el historial. Si sale más de lo que entra, dará negativo.
+                    ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    
+                    stock_real = ent_total - sal_total
+                    
+                    # CÁLCULO DELTA VERDE (Entradas Recientes)
+                    mask_rec = (df['fecha'].dt.date >= fecha_corte)
+                    df_rec = df.loc[mask_rec]
+                    ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
+                    
+                    # MOSTRAR (Emoji + Stock Real + Indicador Verde)
+                    cols[i].metric(
+                        label=f"🛢️ {b}", 
+                        value=f"{stock_real:.1f} L", 
+                        delta=f"➕ {ent_recientes:.1f} L (Desde 25/{fecha_corte.month})"
+                    )
+                
+                # --- El resto de la pestaña se mantiene igual ---
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
                 dff = df[(df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)]
@@ -227,38 +233,40 @@ with tab2:
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    # Asegurar que existan las columnas antes de mostrar
-                    cols_existentes = [c for c in cols_ver if c in dff.columns]
+                    # Verificamos que las columnas existan antes de mostrar
+                    cols_existentes = [c for c in cols_ver if c in df.columns]
                     st.dataframe(dff[cols_existentes].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento")
-                    df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
-                    if not df_maq.empty:
-                        res = []
-                        for cod in df_maq['codigo_maquina'].unique():
-                            if cod in FLOTA:
-                                dm = df_maq[df_maq['codigo_maquina'] == cod]
-                                l = dm['litros'].sum()
-                                rec = (dm['media']*dm['litros']).sum()
-                                if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
-                                prom = rec/l if l>0 else 0
-                                res.append({
-                                    "Máquina": FLOTA[cod]['nombre'],
-                                    "Litros": round(l, 1),
-                                    "Promedio": round(prom, 1)
-                                })
-                        df_res = pd.DataFrame(res)
-                        st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
-                        st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
-                        
-                        st.markdown("### 📥 Descargas")
-                        c1, c2, c3 = st.columns(3)
-                        c1.download_button("Excel", generar_excel(dff[cols_existentes]), "Historial.xlsx")
-                        c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
-                        c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
+                    # Filtro seguro para 'tipo_operacion'
+                    if 'tipo_operacion' in dff.columns:
+                        df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
+                        if not df_maq.empty:
+                            res = []
+                            for cod in df_maq['codigo_maquina'].unique():
+                                if cod in FLOTA:
+                                    dm = df_maq[df_maq['codigo_maquina'] == cod]
+                                    l = dm['litros'].sum()
+                                    rec = (dm['media']*dm['litros']).sum()
+                                    if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
+                                    prom = rec/l if l>0 else 0
+                                    res.append({
+                                        "Máquina": FLOTA[cod]['nombre'],
+                                        "Litros": round(l, 1),
+                                        "Promedio": round(prom, 1)
+                                    })
+                            df_res = pd.DataFrame(res)
+                            st.dataframe(df_res.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                            st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
+                            
+                            st.markdown("### 📥 Descargas")
+                            c1, c2, c3 = st.columns(3)
+                            c1.download_button("Excel", generar_excel(dff[cols_existentes]), "Historial.xlsx")
+                            c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
+                            c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
+                    else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(f"Error técnico: {e}")
-
 # --- TAB 3: VERIFICACIÓN ---
 with tab3: 
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
@@ -365,3 +373,4 @@ with tab4:
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
