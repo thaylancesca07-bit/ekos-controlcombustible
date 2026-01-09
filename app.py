@@ -12,113 +12,117 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# ESTILOS CSS FINALES (Todo Claro y Legible)
+# ESTILOS CSS DEFINITIVOS (Color Fijo Marrón Claro)
 st.markdown("""
     <style>
-    /* Fondo General de la App */
+    /* 1. FONDO GENERAL */
     .stApp {
-        background-color: #f7f7e8; /* Beige muy suave */
-        color: #0b0f19; /* Azul muy oscuro casi negro */
+        background-color: #f7f7e8; /* Beige muy suave de fondo */
+        color: #0b0f19; /* Texto oscuro */
     }
     
-    /* Textos Generales */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span {
+    /* 2. TEXTOS GENERALES */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, div, span, .stMetricLabel {
         color: #0b0f19 !important;
     }
 
-    /* --- INPUTS (Cajas de texto y números) --- */
+    /* 3. INPUTS (Cajas donde escribes texto/números) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
-        color: #0b0f19 !important;
         background-color: #ffffff !important; /* Blanco puro */
+        color: #0b0f19 !important;
         border: 1px solid #b0a890 !important;
         border-radius: 5px;
     }
     
-    /* --- SELECTBOX Y MENÚS DESPLEGABLES (CRÍTICO) --- */
-    /* Caja cerrada */
+    /* 4. SELECTBOX (Cajas de selección: Año, Máquina, Encargado) */
+    /* ESTADO NORMAL (Sin pasar mouse) */
     div[data-baseweb="select"] > div {
-        background-color: #e6e2d3 !important; /* Marrón claro */
+        background-color: #e6e2d3 !important; /* MARRÓN CLARO FIJO */
         color: #0b0f19 !important;
-        border: 1px solid #0b0f19 !important;
+        border: 1px solid #8c867a !important; /* Borde definido */
     }
     
-    /* Ícono de flecha */
+    /* Texto dentro del selectbox */
+    .stSelectbox div[data-baseweb="select"] span {
+        color: #0b0f19 !important;
+    }
+    
+    /* Ícono de la flecha */
     .stSelectbox svg {
         fill: #0b0f19 !important;
     }
 
-    /* EL MENÚ DESPLEGABLE (Las opciones de abajo) */
+    /* MENÚ DESPLEGABLE (Las opciones al hacer clic) */
     ul[data-baseweb="menu"] {
-        background-color: #ffffff !important; /* Fondo blanco */
+        background-color: #ffffff !important; /* Fondo blanco para leer bien */
         border: 1px solid #0b0f19 !important;
     }
-    
-    /* Cada opción individual dentro del menú */
     li[data-baseweb="option"] {
-        color: #0b0f19 !important; /* Texto negro */
+        color: #0b0f19 !important;
         background-color: #ffffff !important;
     }
-    
-    /* Opción cuando pasas el mouse por encima o está seleccionada */
+    /* Opción seleccionada o con mouse encima */
     li[data-baseweb="option"]:hover, li[aria-selected="true"] {
-        background-color: #e6e2d3 !important; /* Marrón claro al seleccionar */
-        color: #0b0f19 !important;
-        font-weight: bold !important;
-    }
-    
-    /* Texto seleccionado dentro de la caja */
-    .stSelectbox div[data-baseweb="select"] span {
-        color: #0b0f19 !important;
-    }
-
-    /* --- PESTAÑAS (TABS) --- */
-    button[data-baseweb="tab"] {
-        background-color: transparent !important;
-        color: #0b0f19 !important;
-        border: none !important;
-    }
-    /* Pestaña Activa */
-    button[data-baseweb="tab"][aria-selected="true"] {
         background-color: #e6e2d3 !important;
         color: #0b0f19 !important;
-        border-bottom: 3px solid #0b0f19 !important;
-        font-weight: bold !important;
+        font-weight: bold;
     }
 
-    /* --- BOTONES DE ACCIÓN --- */
+    /* 5. BOTONES (Guardar, Descargar, Sincronizar) */
+    /* ESTADO NORMAL */
     .stButton > button, .stDownloadButton > button {
-        background-color: #e6e2d3 !important;
-        color: #0b0f19 !important;
-        border: 1px solid #0b0f19 !important;
+        background-color: #e6e2d3 !important; /* MARRÓN CLARO FIJO */
+        color: #0b0f19 !important; /* Texto Oscuro */
+        border: 1px solid #8c867a !important;
         border-radius: 8px !important;
         font-weight: bold !important;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1) !important;
     }
+    
+    /* ESTADO HOVER (Pasar mouse) */
     .stButton > button:hover, .stDownloadButton > button:hover {
-        background-color: #d1ccb8 !important;
-        border-color: #000000 !important;
+        background-color: #d1ccb8 !important; /* Un poco más oscuro */
+        color: #0b0f19 !important;
+        border-color: #0b0f19 !important;
+        transform: scale(1.02); /* Pequeño efecto de zoom */
     }
+
+    /* Texto dentro del botón */
     .stButton > button p, .stDownloadButton > button p {
         color: #0b0f19 !important;
     }
 
-    /* --- CALENDARIO --- */
+    /* 6. CALENDARIO (Date Picker) */
     div[data-baseweb="calendar"] {
-        background-color: #2c3e50 !important;
-        color: #ffffff !important;
+        background-color: #ffffff !important;
+        color: #0b0f19 !important;
+        border: 1px solid #8c867a;
     }
     div[data-baseweb="calendar"] button {
-        color: #ffffff !important;
+        color: #0b0f19 !important; /* Flechas negras */
     }
     div[role="grid"] div {
-        color: #ffffff !important;
+        color: #0b0f19 !important; /* Números negros */
     }
     div[aria-selected="true"] {
-        background-color: #E67E22 !important;
-        color: #ffffff !important;
+        background-color: #e6e2d3 !important;
+        color: #0b0f19 !important;
+        font-weight: bold;
     }
 
-    /* --- TABLAS --- */
+    /* 7. PESTAÑAS (Tabs) */
+    button[data-baseweb="tab"] {
+        background-color: transparent !important;
+        color: #0b0f19 !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #e6e2d3 !important;
+        color: #0b0f19 !important;
+        border-radius: 5px 5px 0 0;
+        font-weight: bold;
+    }
+
+    /* 8. TABLAS */
     div[data-testid="stDataFrame"] {
         background-color: #fffcf0 !important;
         padding: 10px;
@@ -634,4 +638,3 @@ with tab5:
                     st.info(f"No hay datos registrados para la máquina {cod_maq} en el año {anio_elegido}.")
 
         except Exception as e: st.error(f"Error al procesar: {e}")
-
