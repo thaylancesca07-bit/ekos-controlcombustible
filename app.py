@@ -224,7 +224,7 @@ with tab2: # AUDITORÍA
                                     
                                     if len(dm) > 1:
                                         dm_sorted = dm.sort_values('lectura_actual')
-                                        l_ajustados = dm_sorted.iloc[1:]['Lectura Km/H'].sum()
+                                        l_ajustados = dm_sorted.iloc[1:]['lectura_actual'].sum()
                                     else: l_ajustados = l_total
 
                                     # INICIALIZAR LAS 3 METRICAS
@@ -444,4 +444,5 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
