@@ -101,6 +101,10 @@ def generar_word(df, titulo):
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
 
+# ESTILO TABLA ESTÁNDAR
+def estilo_tabla(df):
+    return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
+
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
@@ -127,7 +131,10 @@ with tab1: # REGISTRO
         
         with st.form("f_reg", clear_on_submit=True):
             c1, c2 = st.columns(2)
-            chofer = c1.text_input("Chofer"); fecha = c1.date_input("Fecha", date.today()); act = c1.text_input("Actividad")
+            chofer = c1.text_input("Chofer")
+            # FECHA CON FORMATO LATINO
+            fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY") 
+            act = c1.text_input("Actividad")
             lts = c2.number_input("Litros", min_value=0.0, step=0.1)
             
             if "Máquina" in operacion:
@@ -146,6 +153,8 @@ with tab1: # REGISTRO
                         if "Máquina" in operacion and lect > 0:
                             df_h = pd.read_csv(SHEET_URL); df_h.columns = df_h.columns.str.strip().str.lower()
                             if 'lectura_actual' in df_h.columns:
+                                # LIMPIEZA DE COMAS AL LEER
+                                df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
                                 if lect > ult and lts > 0: mc = (lect - ult) / lts
@@ -170,14 +179,20 @@ with tab1: # REGISTRO
                     try: requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA (LÓGICA MATEMÁTICA CORREGIDA)
+with tab2: # AUDITORÍA
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
                 df.columns = df.columns.str.strip().str.lower()
+                
+                # --- CORRECCIÓN DEFINITIVA DE NÚMEROS (COMAS A PUNTOS) ---
                 for c in ['litros', 'media', 'lectura_actual']:
-                    if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+                    if c in df.columns: 
+                        df[c] = df[c].astype(str).str.replace(',', '.') # REEMPLAZO CRÍTICO
+                        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+                # ---------------------------------------------------------
+
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
                 
                 st.subheader("📦 Stock Actual")
@@ -190,7 +205,11 @@ with tab2: # AUDITORÍA (LÓGICA MATEMÁTICA CORREGIDA)
                     cols[i].metric(label=f"🛢️ {b}", value=f"{ent - sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
-                c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
+                # FECHAS LATINAS
+                c1, c2 = st.columns(2)
+                d1 = c1.date_input("Desde", date.today()-timedelta(30), format="DD/MM/YYYY")
+                d2 = c2.date_input("Hasta", date.today(), format="DD/MM/YYYY")
+                
                 dff = df[(df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)]
                 
                 if not dff.empty:
@@ -207,38 +226,29 @@ with tab2: # AUDITORÍA (LÓGICA MATEMÁTICA CORREGIDA)
                                 if cod in FLOTA:
                                     dm = df_maq[df_maq['codigo_maquina'] == cod]
                                     
-                                    # NUEVA LÓGICA DE CÁLCULO
-                                    # 1. Total Litros en el periodo
                                     l_total = dm['litros'].sum()
                                     
-                                    # 2. Recorrido Real = Max Lectura - Min Lectura
                                     lect_max = dm['lectura_actual'].max()
                                     lect_min = dm['lectura_actual'].min()
                                     rec_real = lect_max - lect_min
                                     
-                                    # 3. Litros Ajustados (Para el promedio, quitamos la primera carga del periodo
-                                    #    porque su consumo corresponde al periodo anterior no registrado aquí)
-                                    #    Si hay solo 1 registro, usamos sus litros directos.
                                     if len(dm) > 1:
-                                        # Ordenar por lectura y quitar el primero
                                         dm_sorted = dm.sort_values('lectura_actual')
                                         l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
                                     else:
-                                        l_ajustados = l_total # Fallback para 1 solo dato
+                                        l_ajustados = l_total
 
-                                    # Variables separadas
                                     km_total = 0.0
                                     hr_total = 0.0
                                     prom_kml = 0.0
                                     prom_lh = 0.0
                                     
-                                    # Asignación por tipo
                                     if FLOTA[cod]['unidad'] == 'KM':
                                         km_total = rec_real
                                         if l_ajustados > 0: prom_kml = rec_real / l_ajustados
                                     else:
                                         hr_total = rec_real
-                                        if rec_real > 0: prom_lh = l_ajustados / rec_real # Litros / Horas
+                                        if rec_real > 0: prom_lh = l_ajustados / rec_real 
                                     
                                     res.append({
                                         "Máquina": FLOTA[cod]['nombre'],
@@ -277,8 +287,14 @@ with tab3: # VERIFICACIÓN
         if up:
             try:
                 dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
+                # --- CORRECCIÓN COMAS ---
+                for c in ['litros']:
+                    if c in dfe.columns: 
+                        dfe[c] = dfe[c].astype(str).str.replace(',', '.')
+                        dfe[c] = pd.to_numeric(dfe[c], errors='coerce').fillna(0)
+                # ------------------------
+                
                 dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce', dayfirst=True)
-                dfe['litros'] = pd.to_numeric(dfe['litros'], errors='coerce').fillna(0)
                 dfe['KEY'] = dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str)
 
                 if up.name.endswith('.csv'): 
@@ -287,7 +303,11 @@ with tab3: # VERIFICACIÓN
                 else: dfp = pd.read_excel(up, usecols=[5, 12, 14, 15], names=["Fecha", "Resp", "Comb", "Litros"])
                 
                 dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce', dayfirst=True)
+                # --- CORRECCIÓN COMAS ---
+                dfp['Litros'] = dfp['Litros'].astype(str).str.replace(',', '.')
                 dfp['Litros'] = pd.to_numeric(dfp['Litros'], errors='coerce').fillna(0)
+                # ------------------------
+                
                 dfp['KEY'] = dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'].astype(str).str.strip().str.upper() + "_" + dfp['Litros'].astype(int).astype(str)
 
                 m = pd.merge(dfp, dfe, on='KEY', how='outer', indicator=True)
@@ -340,12 +360,18 @@ with tab3: # VERIFICACIÓN
 
             except Exception as e: st.error(f"Error: {e}")
 
-with tab4: # MÁQUINA (MATEMÁTICA CORREGIDA Y ESTADO)
+with tab4: # MÁQUINA (CORREGIDO TAMBIÉN)
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
+            
+            # --- CORRECCIÓN COMAS ---
             for c in ['litros','media','lectura_actual']: 
-                if c in dfm.columns: dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
+                if c in dfm.columns: 
+                    dfm[c] = dfm[c].astype(str).str.replace(',', '.')
+                    dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
+            # ------------------------
+
             dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True)
             
             c1, c2 = st.columns(2)
@@ -362,17 +388,14 @@ with tab4: # MÁQUINA (MATEMÁTICA CORREGIDA Y ESTADO)
                     l_total = dm['litros'].sum()
                     
                     if l_total > 0:
-                        # 1. Recorrido Real del Mes
                         rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
                         
-                        # 2. Litros Ajustados (Quitamos la primera carga si hay más de 1)
                         if len(dm) > 1:
                             dm_sorted = dm.sort_values('lectura_actual')
                             l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
                         else:
                             l_ajustados = l_total
 
-                        # 3. Promedio
                         if FLOTA[cod]['unidad'] == 'KM':
                             pr = rec/l_ajustados if l_ajustados > 0 else 0
                         else:
@@ -381,7 +404,6 @@ with tab4: # MÁQUINA (MATEMÁTICA CORREGIDA Y ESTADO)
                         pr = 0
                         l_total = 0
                     
-                    # 4. Estado
                     estado = "N/A"
                     if l_total > 0 and pr > 0:
                         ideal = FLOTA[cod]['ideal']
