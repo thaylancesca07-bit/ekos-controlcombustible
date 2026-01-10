@@ -212,7 +212,6 @@ with tab2: # AUDITORÍA
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
                             res = []
-                            # ORDENAR ALFABÉTICAMENTE POR CÓDIGO
                             codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
                             
                             for cod in codigos_ordenados:
@@ -228,43 +227,52 @@ with tab2: # AUDITORÍA
                                         l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
                                     else: l_ajustados = l_total
 
-                                    pr = 0
-                                    unit = "N/A"
-                                    if FLOTA[cod]['unidad'] == 'KM':
-                                        unit = "Km/L"
-                                        if l_ajustados > 0: pr = rec_real / l_ajustados
-                                    else:
-                                        unit = "L/H"
-                                        if rec_real > 0: pr = l_ajustados / rec_real 
+                                    # INICIALIZAR LAS 3 METRICAS
+                                    val_kml = 0.0
+                                    val_lkm = 0.0
+                                    val_lh = 0.0
                                     
-                                    # LÓGICA DE ESTADO (COPIADA DE TAB 4)
+                                    # CÁLCULOS SEGÚN UNIDAD (Para mostrar las 3 columnas)
+                                    if FLOTA[cod]['unidad'] == 'KM':
+                                        if l_ajustados > 0: val_kml = rec_real / l_ajustados
+                                        if rec_real > 0: val_lkm = l_ajustados / rec_real
+                                        # val_lh se queda en 0.0
+                                    else: # Horas
+                                        if rec_real > 0: val_lh = l_ajustados / rec_real
+                                        # val_kml y val_lkm se quedan en 0.0
+                                    
+                                    # LÓGICA DE ESTADO (Para la nota)
                                     estado = "N/A"
-                                    if l_total > 0 and pr > 0:
+                                    if l_total > 0 and (val_kml > 0 or val_lh > 0):
                                         ideal = FLOTA[cod]['ideal']
-                                        if unit == "Km/L":
-                                            if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                            elif pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                        if FLOTA[cod]['unidad'] == 'KM':
+                                            # Usamos Km/L como referencia principal
+                                            if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                            elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                                             else: estado = "✅ Ideal"
                                         else: # L/H
-                                            if pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                            elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                            if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                            elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                                             else: estado = "✅ Ideal"
 
                                     res.append({
                                         "Código": cod,
-                                        "Litros Totales": round(l_total, 1),
-                                        "Recorrido Total": round(rec_real, 1),
-                                        "Rendimiento": round(pr, 2),
-                                        "Unidad": unit,
+                                        "Recorrido": round(rec_real, 1),
+                                        "Litros": round(l_total, 1),
+                                        "Km/L": round(val_kml, 2),
+                                        "L/Km": round(val_lkm, 2),
+                                        "L/H": round(val_lh, 2),
                                         "Estado": estado
                                     })
                             
                             df_res = pd.DataFrame(res)
                             
                             st.dataframe(df_res.style.format({
-                                "Litros Totales": "{:.1f}",
-                                "Recorrido Total": "{:.1f}",
-                                "Rendimiento": "{:.2f}"
+                                "Recorrido": "{:.1f}",
+                                "Litros": "{:.1f}",
+                                "Km/L": "{:.2f}",
+                                "L/Km": "{:.2f}",
+                                "L/H": "{:.2f}"
                             }), use_container_width=True)
                             
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
