@@ -207,7 +207,7 @@ with tab2: # AUDITORÍA
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
                     st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    st.subheader("📊 Rendimiento General")
+                    st.subheader("📊 Rendimiento General (Resumen)")
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
@@ -224,7 +224,7 @@ with tab2: # AUDITORÍA
                                     
                                     if len(dm) > 1:
                                         dm_sorted = dm.sort_values('lectura_actual')
-                                        l_ajustados = dm_sorted.iloc[1:]['lectura_actual'].sum()
+                                        l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
                                     else: l_ajustados = l_total
 
                                     # INICIALIZAR LAS 3 METRICAS
@@ -268,8 +268,8 @@ with tab2: # AUDITORÍA
                             df_res = pd.DataFrame(res)
                             
                             st.dataframe(df_res.style.format({
-                                "Km o H Totales": "{:.1f}",
-                                "Combustible Consumido": "{:.1f}",
+                                "Recorrido": "{:.1f}",
+                                "Litros": "{:.1f}",
                                 "Km/L": "{:.2f}",
                                 "L/Km": "{:.2f}",
                                 "L/H": "{:.2f}"
@@ -444,5 +444,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
-
