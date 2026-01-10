@@ -21,7 +21,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=cs
 
 ACCESS_CODE_MAESTRO = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
-MARGEN_TOLERANCIA = 0.20 
+MARGEN_TOLERANCIA = 0.20  # 20% de tolerancia
 
 MAPA_COMBUSTIBLE = {
     "4002147 - Diesel EURO 5 S-50": "Diesel S500",
@@ -196,7 +196,6 @@ with tab2: # AUDITORÍA
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    # TABLA SIN COLORES (ESTÁNDAR)
                     st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento General")
@@ -219,12 +218,8 @@ with tab2: # AUDITORÍA
                                     })
                             
                             df_res = pd.DataFrame(res)
-                            # TABLA SIN COLORES (ESTÁNDAR)
                             st.dataframe(df_res.style.format({"Total (Km/Hr)": "{:.1f}", "Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
-                            
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
-                            
-                            st.markdown("### 📥 Descargas")
                             c1, c2, c3 = st.columns(3)
                             c1.download_button("Excel", generar_excel(dff[cols_ver]), "Historial.xlsx")
                             c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
@@ -273,7 +268,6 @@ with tab3: # VERIFICACIÓN
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                # TABLA ESTÁNDAR PERO CON COLORES DE ESTADO (NECESARIO)
                 st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
                 
                 st.markdown("---")
@@ -304,7 +298,7 @@ with tab3: # VERIFICACIÓN
 
             except Exception as e: st.error(f"Error: {e}")
 
-with tab4: # MÁQUINA
+with tab4: # MÁQUINA (CON CLASIFICACIÓN DE ESTADO)
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
@@ -329,15 +323,39 @@ with tab4: # MÁQUINA
                         if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
                         pr = rec/l if FLOTA[cod]['unidad'] == 'KM' else l/rec if rec > 0 else 0
                     else: pr = 0
-                    res.append({"Mes": mn[i-1], "Litros": round(l, 1), "Promedio": round(pr, 1)})
+                    
+                    # --- CLASIFICACIÓN DE ESTADO ---
+                    estado = "N/A"
+                    if l > 0 and pr > 0:
+                        ideal = FLOTA[cod]['ideal']
+                        if FLOTA[cod]['unidad'] == 'KM':
+                            # En KM/L, MÁS es MEJOR. Menos de lo ideal es Alto Consumo.
+                            if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                            elif pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                            else: estado = "✅ Ideal"
+                        else:
+                            # En L/H, MENOS es MEJOR. Más de lo ideal es Alto Consumo.
+                            if pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                            elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                            else: estado = "✅ Ideal"
+                    # -------------------------------
+
+                    res.append({
+                        "Mes": mn[i-1], 
+                        "Litros": round(l, 1), 
+                        "Promedio": round(pr, 1),
+                        "Estado": estado # Nueva Columna
+                    })
                 
                 dr = pd.DataFrame(res)
-                st.subheader(f"📊 {maq}")
+                st.subheader(f"📊 {maq} (Ideal: {FLOTA[cod]['ideal']} {FLOTA[cod]['unidad']}/L o L/H)")
                 c1, c2 = st.columns(2)
                 
                 fig_line, ax_line = plt.subplots(figsize=(6, 4))
                 fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
                 ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
+                # Línea ideal para referencia
+                ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label='Ideal')
                 ax_line.set_title("Rendimiento"); ax_line.legend(); ax_line.grid(True, alpha=0.3)
                 c1.pyplot(fig_line)
                 
@@ -347,7 +365,6 @@ with tab4: # MÁQUINA
                 ax_bar.set_title("Consumo (Litros)")
                 c2.pyplot(fig_bar)
 
-                # TABLA SIN COLORES (ESTÁNDAR)
                 st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
