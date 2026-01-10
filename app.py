@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import io
 import tempfile
 import time
-import base64 # Importante para la foto
+import base64
 from datetime import date, datetime, timedelta
 from fpdf import FPDF
 from docx import Document
@@ -14,7 +14,7 @@ from docx.shared import Inches
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
 st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide")
 
-# URL DEL SCRIPT DE GOOGLE (Asegúrate de que esta URL sea la de tu script publicado como "Cualquiera")
+# URL DEL SCRIPT DE GOOGLE
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnPU3LdaHqrNO4bTsiBMKmm06ZSm3dUbxb5OBBnHBQOHRSuxcGv_MK4jWNHsrAn3M/exec"
 SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
@@ -101,10 +101,6 @@ def generar_word(df, titulo):
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
 
-# ESTA ES LA FUNCIÓN QUE FALTABA
-def estilo_tabla(df):
-    return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
-
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
@@ -134,13 +130,11 @@ with tab1: # REGISTRO
             chofer = c1.text_input("Chofer"); fecha = c1.date_input("Fecha", date.today()); act = c1.text_input("Actividad")
             lts = c2.number_input("Litros", min_value=0.0, step=0.1)
             
-            # OCULTAR LECTURA PARA BARRILES
             if "Máquina" in operacion:
                 lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0)
             else:
                 lect = 0.0
 
-            # FOTO OPCIONAL
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
@@ -157,7 +151,6 @@ with tab1: # REGISTRO
                                 if lect > ult and lts > 0: mc = (lect - ult) / lts
                     except: pass
                     
-                    # PROCESAR FOTO
                     img_str, img_name, img_mime = "", "", ""
                     if foto is not None:
                         try:
@@ -194,7 +187,6 @@ with tab2: # AUDITORÍA
                 for i, b in enumerate(BARRILES_LISTA):
                     ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
                     sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    # SIN BOTONES VERDES, SOLO STOCK
                     cols[i].metric(label=f"🛢️ {b}", value=f"{ent - sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
@@ -204,7 +196,8 @@ with tab2: # AUDITORÍA
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    st.dataframe(estilo_tabla(dff[cols_ver].sort_values(by='fecha', ascending=False)).format({"litros": "{:.1f}"}), use_container_width=True)
+                    # TABLA SIN COLORES (ESTÁNDAR)
+                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento General")
                     if 'tipo_operacion' in dff.columns:
@@ -215,28 +208,19 @@ with tab2: # AUDITORÍA
                                 if cod in FLOTA:
                                     dm = df_maq[df_maq['codigo_maquina'] == cod]
                                     l = dm['litros'].sum()
-                                    
-                                    # CÁLCULO DE KM TOTALES
                                     rec = (dm['media']*dm['litros']).sum()
                                     if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
-                                    
                                     prom = rec/l if l>0 else 0
-                                    
                                     res.append({
                                         "Máquina": FLOTA[cod]['nombre'],
-                                        "Total (Km/Hr)": round(rec, 1), # NUEVA COLUMNA
+                                        "Total (Km/Hr)": round(rec, 1),
                                         "Litros": round(l, 1), 
                                         "Promedio": round(prom, 1)
                                     })
                             
                             df_res = pd.DataFrame(res)
-                            
-                            # TABLA CON NUEVA COLUMNA Y FORMATO
-                            st.dataframe(estilo_tabla(df_res).format({
-                                "Total (Km/Hr)": "{:.1f}", 
-                                "Litros": "{:.1f}", 
-                                "Promedio": "{:.1f}"
-                            }), use_container_width=True)
+                            # TABLA SIN COLORES (ESTÁNDAR)
+                            st.dataframe(df_res.style.format({"Total (Km/Hr)": "{:.1f}", "Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                             
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
                             
@@ -289,7 +273,8 @@ with tab3: # VERIFICACIÓN
                     elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
                     else: return 'background-color: #fff3cd; color: black'
 
-                st.dataframe(estilo_tabla(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado'])), use_container_width=True)
+                # TABLA ESTÁNDAR PERO CON COLORES DE ESTADO (NECESARIO)
+                st.dataframe(fv.style.format({"Litros_F": "{:.1f}"}).applymap(color, subset=['Estado']), use_container_width=True)
                 
                 st.markdown("---")
                 if st.button("🚀 SINCRONIZAR REPORTE COMPLETO"):
@@ -350,7 +335,6 @@ with tab4: # MÁQUINA
                 st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
                 
-                # Gráficos fondo blanco estándar
                 fig_line, ax_line = plt.subplots(figsize=(6, 4))
                 fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
                 ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
@@ -363,7 +347,8 @@ with tab4: # MÁQUINA
                 ax_bar.set_title("Consumo (Litros)")
                 c2.pyplot(fig_bar)
 
-                st.dataframe(estilo_tabla(dr).format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                # TABLA SIN COLORES (ESTÁNDAR)
+                st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
                 
                 c1, c2 = st.columns(2)
                 c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
