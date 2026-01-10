@@ -168,7 +168,7 @@ with tab1: # REGISTRO
                         requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA (CON COLUMNA DE RECORRIDO TOTAL)
+with tab2: # AUDITORÍA
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -178,23 +178,16 @@ with tab2: # AUDITORÍA (CON COLUMNA DE RECORRIDO TOTAL)
                     if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
                 df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce', dayfirst=True)
                 
-                hoy = date.today()
-                primer_dia_este_mes = hoy.replace(day=1)
-                ultimo_dia_mes_ant = primer_dia_este_mes - timedelta(days=1)
-                fecha_corte = ultimo_dia_mes_ant.replace(day=25)
-
+                # --- CALCULO STOCK ---
                 st.subheader("📦 Stock Actual")
                 ta = st.radio("Combustible:", TIPOS_COMBUSTIBLE, horizontal=True)
                 cols = st.columns(4)
                 
                 for i, b in enumerate(BARRILES_LISTA):
-                    ent_total = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    sal_total = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
-                    stock_real = ent_total - sal_total
-                    mask_rec = (df['fecha'].dt.date >= fecha_corte)
-                    df_rec = df.loc[mask_rec]
-                    ent_recientes = df_rec[(df_rec['codigo_maquina'] == b) & (df_rec['tipo_combustible'] == ta)]['litros'].sum()
-                    cols[i].metric(label=f"🛢️ {b}", value=f"{stock_real:.1f} L", delta=f"➕ {ent_recientes:.1f} L (Desde 25/{fecha_corte.month})")
+                    ent = df[(df['codigo_maquina'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    sal = df[(df['origen'] == b) & (df['tipo_combustible'] == ta)]['litros'].sum()
+                    # Simplemente Stock Real (Entradas - Salidas) sin indicadores verdes extra
+                    cols[i].metric(label=f"🛢️ {b}", value=f"{ent - sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
                 c1, c2 = st.columns(2); d1 = c1.date_input("Desde", date.today()-timedelta(30)); d2 = c2.date_input("Hasta", date.today())
@@ -203,10 +196,10 @@ with tab2: # AUDITORÍA (CON COLUMNA DE RECORRIDO TOTAL)
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
+                    # Usamos tu función de estilo
                     st.dataframe(estilo_tabla(dff[cols_ver].sort_values(by='fecha', ascending=False)).format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    st.subheader("📊 Rendimiento General")
-                    # Filtro seguro para 'tipo_operacion'
+                    st.subheader("📊 Rendimiento")
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
@@ -216,24 +209,25 @@ with tab2: # AUDITORÍA (CON COLUMNA DE RECORRIDO TOTAL)
                                     dm = df_maq[df_maq['codigo_maquina'] == cod]
                                     l = dm['litros'].sum()
                                     
-                                    # Cálculo del Recorrido (KM u Horas)
+                                    # Calculo del recorrido total
                                     rec = (dm['media']*dm['litros']).sum()
                                     if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
                                     
                                     prom = rec/l if l>0 else 0
                                     
+                                    # AQUÍ AGREGAMOS LA COLUMNA NUEVA
                                     res.append({
                                         "Máquina": FLOTA[cod]['nombre'],
-                                        "Total (Km/Hr)": round(rec, 1), # <--- AQUI AGREGAMOS LA COLUMNA
+                                        "Total (Km/Hr)": round(rec, 1), # Nueva Columna
                                         "Litros": round(l, 1), 
-                                        "Promedio": round(prom, 1) 
+                                        "Promedio": round(prom, 1)
                                     })
                             
                             df_res = pd.DataFrame(res)
                             
-                            # Mostramos la tabla con el formato nuevo
+                            # Mostramos la tabla con la nueva columna formateada
                             st.dataframe(estilo_tabla(df_res).format({
-                                "Total (Km/Hr)": "{:.1f}", # Formato para la nueva columna
+                                "Total (Km/Hr)": "{:.1f}", 
                                 "Litros": "{:.1f}", 
                                 "Promedio": "{:.1f}"
                             }), use_container_width=True)
@@ -247,8 +241,7 @@ with tab2: # AUDITORÍA (CON COLUMNA DE RECORRIDO TOTAL)
                             c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                     else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
-        except Exception as e: st.error(f"Error técnico: {e}")
-
+        except Exception as e: st.error(f"Error: {e}")
 with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
@@ -362,5 +355,6 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
