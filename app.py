@@ -21,7 +21,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=cs
 
 ACCESS_CODE_MAESTRO = "1645"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
-MARGEN_TOLERANCIA = 0.20  # 20% de tolerancia
+MARGEN_TOLERANCIA = 0.20 
 
 MAPA_COMBUSTIBLE = {
     "4002147 - Diesel EURO 5 S-50": "Diesel S500",
@@ -100,6 +100,10 @@ def generar_word(df, titulo):
             row_cells = t.add_row().cells
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
+
+# ESTILO TABLA ESTÁNDAR
+def estilo_tabla(df):
+    return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
@@ -207,19 +211,40 @@ with tab2: # AUDITORÍA
                                 if cod in FLOTA:
                                     dm = df_maq[df_maq['codigo_maquina'] == cod]
                                     l = dm['litros'].sum()
+                                    
+                                    # CALCULO DE RECORRIDO (KM u Horas)
                                     rec = (dm['media']*dm['litros']).sum()
                                     if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
-                                    prom = rec/l if l>0 else 0
+                                    
+                                    # CALCULO DE PROMEDIO SEGUN TIPO (KM/L o L/H)
+                                    if FLOTA[cod]['unidad'] == 'KM':
+                                        # Camiones: KM / Litros (Más es mejor)
+                                        prom = rec / l if l > 0 else 0
+                                    else:
+                                        # Máquinas: Litros / Horas (Menos es mejor)
+                                        prom = l / rec if rec > 0 else 0
+                                    
                                     res.append({
                                         "Máquina": FLOTA[cod]['nombre'],
                                         "Total (Km/Hr)": round(rec, 1),
                                         "Litros": round(l, 1), 
-                                        "Promedio": round(prom, 1)
+                                        "Promedio": round(prom, 1),
+                                        "Ideal": FLOTA[cod]['ideal'] # AQUI ESTA LA COLUMNA IDEAL
                                     })
                             
                             df_res = pd.DataFrame(res)
-                            st.dataframe(df_res.style.format({"Total (Km/Hr)": "{:.1f}", "Litros": "{:.1f}", "Promedio": "{:.1f}"}), use_container_width=True)
+                            
+                            # MOSTRAR TABLA CON COLUMNA IDEAL
+                            st.dataframe(estilo_tabla(df_res).format({
+                                "Total (Km/Hr)": "{:.1f}", 
+                                "Litros": "{:.1f}", 
+                                "Promedio": "{:.1f}",
+                                "Ideal": "{:.1f}"
+                            }), use_container_width=True)
+                            
                             st.bar_chart(df_maq.groupby('nombre_maquina')['litros'].sum())
+                            
+                            st.markdown("### 📥 Descargas")
                             c1, c2, c3 = st.columns(3)
                             c1.download_button("Excel", generar_excel(dff[cols_ver]), "Historial.xlsx")
                             c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
@@ -298,7 +323,7 @@ with tab3: # VERIFICACIÓN
 
             except Exception as e: st.error(f"Error: {e}")
 
-with tab4: # MÁQUINA (CON CLASIFICACIÓN DE ESTADO)
+with tab4: # MÁQUINA
     if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
         try:
             dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
@@ -321,40 +346,45 @@ with tab4: # MÁQUINA (CON CLASIFICACIÓN DE ESTADO)
                     if l > 0:
                         rec = (dm['media']*dm['litros']).sum()
                         if rec < 1: rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
-                        pr = rec/l if FLOTA[cod]['unidad'] == 'KM' else l/rec if rec > 0 else 0
+                        
+                        # --- CÁLCULO PROMEDIO POR TIPO ---
+                        if FLOTA[cod]['unidad'] == 'KM':
+                            pr = rec/l if l>0 else 0
+                        else:
+                            pr = l/rec if rec>0 else 0
+                        # ---------------------------------
                     else: pr = 0
                     
-                    # --- CLASIFICACIÓN DE ESTADO ---
+                    # --- ESTADO CON TOLERANCIA ---
                     estado = "N/A"
                     if l > 0 and pr > 0:
                         ideal = FLOTA[cod]['ideal']
                         if FLOTA[cod]['unidad'] == 'KM':
-                            # En KM/L, MÁS es MEJOR. Menos de lo ideal es Alto Consumo.
+                            # KM/L: Más es mejor
                             if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                             elif pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                             else: estado = "✅ Ideal"
                         else:
-                            # En L/H, MENOS es MEJOR. Más de lo ideal es Alto Consumo.
+                            # L/H: Menos es mejor
                             if pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                             elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                             else: estado = "✅ Ideal"
-                    # -------------------------------
+                    # -----------------------------
 
                     res.append({
                         "Mes": mn[i-1], 
                         "Litros": round(l, 1), 
                         "Promedio": round(pr, 1),
-                        "Estado": estado # Nueva Columna
+                        "Estado": estado
                     })
                 
                 dr = pd.DataFrame(res)
-                st.subheader(f"📊 {maq} (Ideal: {FLOTA[cod]['ideal']} {FLOTA[cod]['unidad']}/L o L/H)")
+                st.subheader(f"📊 {maq} (Ideal: {FLOTA[cod]['ideal']} {FLOTA[cod]['unidad']})")
                 c1, c2 = st.columns(2)
                 
                 fig_line, ax_line = plt.subplots(figsize=(6, 4))
                 fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
                 ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
-                # Línea ideal para referencia
                 ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label='Ideal')
                 ax_line.set_title("Rendimiento"); ax_line.legend(); ax_line.grid(True, alpha=0.3)
                 c1.pyplot(fig_line)
