@@ -491,7 +491,7 @@ with tab2: # AUDITORÍA
                                 st.error("Contraseña incorrecta.")
                     else:
                         # MENSAJE PARA NATALIA U OTROS USUARIOS
-                        st.info("ℹ️ La sección de generación de Informes Corporativos está restringida únicamente al usuario 'Auditoria'.")
+                        st.info("ℹ️.")
 
                     # ----------------------------------------------
 
@@ -635,6 +635,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
