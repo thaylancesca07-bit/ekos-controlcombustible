@@ -446,26 +446,33 @@ with tab2: # AUDITORÍA
                     # --- NUEVA SECCIÓN DE EXCELENCIA CONSULTORA ---
                     st.markdown("---")
                     with st.expander("📂 Informe Excelencia Consultora (Corporativo)"):
-                        st.markdown("Esta sección genera un informe Word detallado y redactado profesionalmente para el encargado seleccionado.")
+                        st.markdown("Genere un informe Word que incluye el análisis de inconsistencias con Petrobras.")
                         pass_excelencia = st.text_input("Contraseña de Acceso:", type="password", key="pass_exc")
                         
                         if pass_excelencia == PASS_EXCELENCIA:
+                            # SUBIDA DE ARCHIVO PETROBRAS PARA EL INFORME
+                            file_petro = st.file_uploader("📂 Subir Archivo Petrobras (para conciliación en Word)", type=["xlsx", "csv"], key="file_petro_word")
+                            
+                            df_petro_loaded = None
+                            if file_petro:
+                                try:
+                                    if file_petro.name.endswith('.csv'):
+                                        df_petro_loaded = pd.read_csv(file_petro, sep=';', header=0, engine='python')
+                                    else:
+                                        df_petro_loaded = pd.read_excel(file_petro)
+                                    st.success("Archivo Petrobras cargado temporalmente para el informe.")
+                                except: st.error("Error leyendo archivo Petrobras.")
+
                             if enc_filter == "Todos":
-                                st.warning("⚠️ Por favor, selecciona un Encargado Específico en el filtro de arriba para generar su informe personal.")
+                                st.warning("⚠️ Selecciona un Encargado Específico arriba para generar su informe.")
                             else:
                                 if st.button(f"📄 Generar Informe Corporativo para {enc_filter}"):
-                                    docx_bytes = generar_informe_corporativo(enc_filter, dff, d1, d2)
-                                    st.download_button(
-                                        label="⬇️ Descargar Informe.docx",
-                                        data=docx_bytes,
-                                        file_name=f"Informe_Gestion_{enc_filter}_{date.today()}.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                    )
-                        elif pass_excelencia:
-                            st.error("Contraseña incorrecta.")
+                                    docx_bytes = generar_informe_corporativo(enc_filter, dff, d1, d2, df_petro_loaded)
+                                    st.download_button("⬇️ Descargar Informe.docx", data=docx_bytes, file_name=f"Informe_{enc_filter}_{date.today()}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                        elif pass_excelencia: st.error("Contraseña incorrecta.")
                     # ----------------------------------------------
 
-                    else: st.info("Falta columna tipo_operacion.")
+                    else: st.info("Falta columna tipo_operacion.") # Este else ahora está alineado con el if 'tipo_operacion'
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
 
@@ -603,3 +610,4 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
