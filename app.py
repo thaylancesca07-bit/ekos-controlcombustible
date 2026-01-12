@@ -46,16 +46,17 @@ FLOTA = {
     "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
     "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
     "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0},
-    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 9.0},
-    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 9.0},
+    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
+    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
-    "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 9.0},
-    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "KM", "ideal": 9.0},
+    "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0},
+    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas", "ideal": 5.0},
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
     "O-01": {"nombre": "Ranger Alquilada", "unidad": "KM", "ideal": 9.0},
-    "O-02": {"nombre": "Otros no listados", "unidad": "Horas", "ideal": 0.0},
+    "O-02": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0},
+    
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
     "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
@@ -107,7 +108,7 @@ def generar_word(df, titulo):
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
-# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (CORREGIDA) ---
+# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN ---
 @st.dialog("📝 Confirmar Información")
 def confirmar_envio(pl):
     st.markdown("### Por favor, verifica que todo esté correcto:")
@@ -118,6 +119,8 @@ def confirmar_envio(pl):
         st.write(f"**Encargado:** {pl['responsable_cargo']}")
         if "Máquina" in pl['tipo_operacion']:
             st.write(f"**Máquina:** {pl['codigo_maquina']}")
+            if pl['nombre_maquina'] != pl['codigo_maquina']:
+                st.write(f"**Nombre:** {pl['nombre_maquina']}")
             st.write(f"**Lectura:** {pl['lectura_actual']}")
         else:
             st.write(f"**Barril:** {pl['codigo_maquina']}")
@@ -137,13 +140,11 @@ def confirmar_envio(pl):
     if col_a.button("✅ SÍ, GUARDAR", type="primary"):
         envio_exitoso = False
         try:
-            # Intentamos enviar
             requests.post(SCRIPT_URL, json=pl)
             envio_exitoso = True
         except:
             st.error("Error REAL de conexión. Verifica tu internet.")
         
-        # Si se envió bien, activamos el estado y recargamos FUERA del try/except
         if envio_exitoso:
             st.session_state['exito_guardado'] = True
             st.rerun()
@@ -155,7 +156,6 @@ def confirmar_envio(pl):
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
-# --- VERIFICACIÓN DE ÉXITO (SE EJECUTA AL INICIO) ---
 if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.toast('Datos Guardados Correctamente!', icon='✅')
     st.markdown("""
@@ -163,7 +163,7 @@ if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
             <source src="https://www.soundjay.com/buttons/sounds/button-3.mp3" type="audio/mpeg">
         </audio>
         """, unsafe_allow_html=True)
-    st.session_state['exito_guardado'] = False # Resetear estado
+    st.session_state['exito_guardado'] = False 
 
 # --------------------------------------------------------------------------------------------------
 
@@ -192,9 +192,22 @@ with tab1: # REGISTRO
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
-                sel_m = st.selectbox("Máquina:", [f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
-                cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
-                origen = st.selectbox("Origen:", op_origen)
+                # --- AÑADIDA OPCIÓN MANUAL ---
+                lista_maquinas = [f"{k} - {v['nombre']}" for k, v in FLOTA.items()]
+                lista_maquinas.append("➕ OTRO (Manual)")
+                
+                sel_m = st.selectbox("Máquina:", lista_maquinas)
+                
+                if sel_m == "➕ OTRO (Manual)":
+                    st.info("Ingresa los datos del nuevo vehículo:")
+                    cod_f = st.text_input("Código (Ej: M-99)").strip().upper()
+                    nom_f = st.text_input("Nombre (Ej: Toyota Hilux)")
+                    unidad = st.selectbox("Unidad de Medida", ["KM", "Horas"])
+                    origen = st.selectbox("Origen:", op_origen)
+                else:
+                    cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
+                    origen = st.selectbox("Origen:", op_origen)
+                # -----------------------------
             else: 
                 cod_f = st.selectbox("Barril:", op_barril)
                 nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", SURTIDORES)
@@ -207,21 +220,25 @@ with tab1: # REGISTRO
             fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY")
             act = c1.text_input("Actividad")
             
-            # --- CAMPOS VACIOS POR DEFECTO ---
             lts = c2.number_input("Litros", min_value=0.0, step=0.1, value=None)
             
             if "Máquina" in operacion:
                 lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0, value=None)
             else:
                 lect = 0.0
-            # ---------------------------------
 
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
             if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
-                if not chofer or not act or lts is None: 
-                    st.warning("⚠️ Faltan datos (Chofer, Actividad o Litros).")
+                # VALIDACION EXTRA PARA MANUAL
+                error_manual = False
+                if "Máquina" in operacion and sel_m == "➕ OTRO (Manual)":
+                    if not cod_f or not nom_f:
+                        error_manual = True
+                
+                if not chofer or not act or lts is None or error_manual: 
+                    st.warning("⚠️ Faltan datos obligatorios (Código, Nombre, Chofer, etc).")
                 elif "Máquina" in operacion and lect is None:
                     st.warning("⚠️ Falta la Lectura.")
                 else:
@@ -230,7 +247,8 @@ with tab1: # REGISTRO
                     
                     mc = 0.0
                     try: 
-                        if "Máquina" in operacion and lect_val > 0:
+                        # Solo calculamos media si el codigo existe en FLOTA, si es manual no podemos (no hay historial seguro aun)
+                        if "Máquina" in operacion and lect_val > 0 and cod_f in FLOTA:
                             df_h = pd.read_csv(SHEET_URL); df_h.columns = df_h.columns.str.strip().str.lower()
                             if 'lectura_actual' in df_h.columns:
                                 df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
@@ -306,6 +324,8 @@ with tab2: # AUDITORÍA
                             codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
                             
                             for cod in codigos_ordenados:
+                                # AQUI FILTRAMOS SOLO LAS QUE ESTAN EN FLOTA PARA EL ANALISIS DETALLADO
+                                # SI SE AGREGA UNA MANUAL, APARECERA EN DETALLE PERO NO AQUI HASTA AGREGARLA AL CODIGO
                                 if cod in FLOTA:
                                     dm = df_maq[df_maq['codigo_maquina'] == cod]
                                     l_total = dm['litros'].sum()
@@ -529,6 +549,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
-
-
