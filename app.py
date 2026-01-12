@@ -21,9 +21,9 @@ SHEET_ID = "1OKfvu5T-Aocc0yMMFJaUJN3L-GR6cBuTxeIA3RNY58E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 ACCESS_CODE_MAESTRO = "1645"
-PASS_EXCELENCIA = "excelespasado" # Contraseña nueva
+PASS_EXCELENCIA = "excelespasado"
 TIPOS_COMBUSTIBLE = ["Diesel S500", "Nafta", "Diesel Podium"]
-MARGEN_TOLERANCIA = 0.20 
+MARGEN_TOLERANCIA = 0.20
 
 MAPA_COMBUSTIBLE = {
     "4002147 - Diesel EURO 5 S-50": "Diesel S500",
@@ -41,6 +41,7 @@ ENCARGADOS_DATA = {
 }
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
+# --- FLOTA ACTUALIZADA ---
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
@@ -56,6 +57,7 @@ FLOTA = {
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
+    "RA-01": {"nombre": "Ranger Alquilada 0-01", "unidad": "KM", "ideal": 9.0}, # AGREGADO AQUI
     "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0},
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
     "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
@@ -604,4 +606,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-            
