@@ -44,6 +44,7 @@ FLOTA = {
     "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
     "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
     "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
+    "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0}, # <--- NUEVA
     "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
     "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
@@ -65,7 +66,6 @@ FLOTA = {
     "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
     "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0}
 }
-
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
@@ -453,5 +453,6 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
