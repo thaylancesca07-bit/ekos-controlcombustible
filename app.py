@@ -495,7 +495,7 @@ with tab2: # AUDITORÍA
 
                     # ----------------------------------------------
 
-                            else: st.info("Falta columna tipo_operacion.")
+                else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
     elif pass_auditoria:
@@ -635,6 +635,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
