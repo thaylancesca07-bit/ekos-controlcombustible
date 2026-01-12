@@ -479,21 +479,16 @@ with tab4: # MÁQUINA
             
             c1, c2 = st.columns(2)
             
-            # --- LISTA COMBINADA PARA SELECTOR (FLOTA + MANUALES EN DB) ---
-            # Obtenemos códigos únicos del historial
+            # --- LISTA COMBINADA PARA SELECTOR (FLOTA + MANUALES) ---
             codigos_db = dfm['codigo_maquina'].unique().tolist()
-            # Creamos lista base con la Flota Oficial
             opciones_maquina = [f"{k} - {v['nombre']}" for k, v in FLOTA.items()]
-            # Añadimos los manuales que no estén en flota
             for c in codigos_db:
                 if c not in FLOTA and isinstance(c, str):
                     opciones_maquina.append(f"{c} - (Manual)")
-            
-            # Ordenar alfabéticamente
             opciones_maquina.sort()
             
             maq = c1.selectbox("Máquina", opciones_maquina)
-            # ---------------------------------------------------------------
+            # --------------------------------------------------------
             
             y = c2.selectbox("Año", [2024, 2025, 2026], index=1)
             cod = maq.split(" - ")[0]
@@ -515,20 +510,15 @@ with tab4: # MÁQUINA
                         else:
                             l_ajustados = l_total
 
-                        # LOGICA PROMEDIO HIBRIDA
                         if cod in FLOTA:
                             if FLOTA[cod]['unidad'] == 'KM':
                                 pr = rec/l_ajustados if l_ajustados > 0 else 0
                             else:
                                 pr = l_ajustados/rec if rec > 0 else 0
                         else:
-                            # Si es manual, no sabemos la unidad segura. 
-                            # Intentamos deducir: si rec > l_ajustados es probable KM (ej: 500km / 50l = 10)
-                            # Si l_ajustados > rec es probable Hora (ej: 50l / 5h = 10)
-                            if rec > l_ajustados:
-                                pr = rec/l_ajustados if l_ajustados > 0 else 0 # Km/L
-                            else:
-                                pr = l_ajustados/rec if rec > 0 else 0 # L/H
+                            # Hibrido para manual
+                            if rec > l_ajustados: pr = rec/l_ajustados if l_ajustados > 0 else 0
+                            else: pr = l_ajustados/rec if rec > 0 else 0
                     else:
                         pr = 0
                         l_total = 0
@@ -545,8 +535,14 @@ with tab4: # MÁQUINA
                             elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                             else: estado = "✅ Ideal"
 
+                    # --- NUEVA COLUMNA ENCARGADOS ---
+                    enc_list = dm['responsable_cargo'].dropna().unique().tolist()
+                    enc_str = ", ".join(enc_list) if enc_list else "-"
+                    # --------------------------------
+
                     res.append({
                         "Mes": mn[i-1], 
+                        "Encargados": enc_str, # <--- AÑADIDO
                         "Litros": round(l_total, 1), 
                         "Promedio": round(pr, 2),
                         "Estado": estado
