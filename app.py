@@ -106,48 +106,39 @@ def generar_word(df, titulo):
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
-# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN ---
+# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (OPTIMIZADA) ---
 @st.dialog("📝 Confirmar Información")
 def confirmar_envio(pl):
     st.markdown("### Por favor, verifica que todo esté correcto:")
     
-    st.write(f"**Fecha:** {pl['fecha']}")
-    st.write(f"**Encargado:** {pl['responsable_cargo']}")
-    st.write(f"**Operación:** {pl['tipo_operacion']}")
+    col_x, col_y = st.columns(2)
+    with col_x:
+        st.write(f"**Fecha:** {pl['fecha']}")
+        st.write(f"**Encargado:** {pl['responsable_cargo']}")
+        if "Máquina" in pl['tipo_operacion']:
+            st.write(f"**Máquina:** {pl['codigo_maquina']}")
+            st.write(f"**Lectura:** {pl['lectura_actual']}")
+        else:
+            st.write(f"**Barril:** {pl['codigo_maquina']}")
     
-    if "Máquina" in pl['tipo_operacion']:
-        st.write(f"**Máquina:** {pl['codigo_maquina']} - {pl['nombre_maquina']}")
-        st.write(f"**Lectura Actual:** {pl['lectura_actual']}")
-    else:
-        st.write(f"**Barril:** {pl['codigo_maquina']}")
-    
-    st.write(f"**Origen:** {pl['origen']}")
-    st.write(f"**Combustible:** {pl['tipo_combustible']}")
-    st.write(f"**Litros:** {pl['litros']}")
-    st.write(f"**Chofer:** {pl['chofer']}")
-    st.write(f"**Actividad:** {pl['actividad']}")
+    with col_y:
+        st.write(f"**Litros:** {pl['litros']}")
+        st.write(f"**Combustible:** {pl['tipo_combustible']}")
+        st.write(f"**Chofer:** {pl['chofer']}")
     
     if pl['imagen_base64']:
         st.success("📸 Foto Adjuntada")
-    else:
-        st.info("No se adjuntó foto")
 
     st.markdown("---")
-    st.warning("¿Estás seguro de guardar estos datos?")
     
     col_a, col_b = st.columns(2)
     
     if col_a.button("✅ SÍ, GUARDAR", type="primary"):
         try:
             requests.post(SCRIPT_URL, json=pl)
-            st.toast('Datos Guardados Correctamente!', icon='✅')
-            st.markdown("""
-                <audio autoplay>
-                    <source src="https://www.soundjay.com/buttons/sounds/button-3.mp3" type="audio/mpeg">
-                </audio>
-                """, unsafe_allow_html=True)
-            time.sleep(1)
-            st.rerun() # Recargar para limpiar
+            # ACTIVAR ESTADO DE EXITO Y CERRAR VENTANA AL INSTANTE
+            st.session_state['exito_guardado'] = True
+            st.rerun()
         except:
             st.error("Error de conexión")
             
@@ -157,6 +148,18 @@ def confirmar_envio(pl):
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+
+# --- VERIFICACIÓN DE ÉXITO (SE EJECUTA AL INICIO PARA MOSTRAR AVISO DESPUÉS DE CERRAR LA VENTANA) ---
+if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
+    st.toast('Datos Guardados Correctamente!', icon='✅')
+    st.markdown("""
+        <audio autoplay>
+            <source src="https://www.soundjay.com/buttons/sounds/button-3.mp3" type="audio/mpeg">
+        </audio>
+        """, unsafe_allow_html=True)
+    st.session_state['exito_guardado'] = False # Resetear estado
+
+# --------------------------------------------------------------------------------------------------
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
 
@@ -168,10 +171,8 @@ with tab1: # REGISTRO
     
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         
-        # --- LISTA DE SURTIDORES ---
         SURTIDORES = ["Surtidor Petrobras", "Surtidor Shell", "Surtidor Crisma", "Surtidor Puma"]
         
-        # PERMISOS
         if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
             op_barril = BARRILES_LISTA
             op_origen = BARRILES_LISTA + SURTIDORES
@@ -200,26 +201,24 @@ with tab1: # REGISTRO
             fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY")
             act = c1.text_input("Actividad")
             
-            # --- MODIFICADO: VALUE=NONE PARA QUE ESTÉ VACÍO ---
+            # --- CAMPOS VACIOS POR DEFECTO ---
             lts = c2.number_input("Litros", min_value=0.0, step=0.1, value=None)
             
             if "Máquina" in operacion:
                 lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0, value=None)
             else:
                 lect = 0.0
-            # --------------------------------------------------
+            # ---------------------------------
 
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
             if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
-                # VALIDAR QUE HAYA NÚMEROS (Porque None cuenta como vacío)
                 if not chofer or not act or lts is None: 
                     st.warning("⚠️ Faltan datos (Chofer, Actividad o Litros).")
                 elif "Máquina" in operacion and lect is None:
                     st.warning("⚠️ Falta la Lectura.")
                 else:
-                    # CONVERTIR NONE A 0.0 PARA CÁLCULOS
                     lts_val = lts if lts is not None else 0.0
                     lect_val = lect if lect is not None else 0.0
                     
