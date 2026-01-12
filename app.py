@@ -168,14 +168,18 @@ with tab1: # REGISTRO
     
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         
+        # --- LISTA DE SURTIDORES ACTUALIZADA ---
+        SURTIDORES = ["Surtidor Petrobras", "Surtidor Shell", "Surtidor Crisma", "Surtidor Puma"]
+        # ---------------------------------------
+
         # PERMISOS
         if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
             op_barril = BARRILES_LISTA
-            op_origen = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
+            op_origen = BARRILES_LISTA + SURTIDORES
         else: 
             mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
             op_barril = [mi_barril] 
-            op_origen = [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
+            op_origen = [mi_barril] + SURTIDORES
 
         operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
         
@@ -185,10 +189,14 @@ with tab1: # REGISTRO
                 sel_m = st.selectbox("Máquina:", [f"{k} - {v['nombre']}" for k, v in FLOTA.items()])
                 cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
                 origen = st.selectbox("Origen:", op_origen)
-            else: cod_f = st.selectbox("Barril:", op_barril); nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", ["Surtidor Petrobras", "Surtidor Shell"])
+            else: 
+                # LÓGICA BARRIL CON NUEVOS SURTIDORES
+                cod_f = st.selectbox("Barril:", op_barril)
+                nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", SURTIDORES)
+
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
-        # FORMULARIO (Sin limpiar automáticamente para permitir revisión)
+        # FORMULARIO
         with st.form("f_reg", clear_on_submit=False):
             c1, c2 = st.columns(2)
             chofer = c1.text_input("Chofer")
@@ -204,7 +212,6 @@ with tab1: # REGISTRO
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
-            # BOTÓN CAMBIADO A "REVISAR"
             if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
                 if not chofer or not act: 
                     st.warning("⚠️ Falta Chofer o Actividad.")
@@ -237,7 +244,6 @@ with tab1: # REGISTRO
                         "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime
                     }
                     
-                    # LLAMAR AL POP-UP CENTRADO
                     confirmar_envio(pl)
 
 with tab2: # AUDITORÍA
@@ -511,3 +517,4 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
