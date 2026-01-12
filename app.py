@@ -39,6 +39,7 @@ ENCARGADOS_DATA = {
 }
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
+# --- FLOTA CORREGIDA (CON RANGER ALQUILADA) ---
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
@@ -54,7 +55,7 @@ FLOTA = {
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
-    "O-01": {"nombre": "Ranger Alquilada", "unidad": "KM", "ideal": 9.0},
+    "O-01": {"nombre": "Ranger Alquilada", "unidad": "KM", "ideal": 9.0}, # <--- MANTENIDO TU CAMBIO
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
     "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
@@ -151,7 +152,7 @@ def confirmar_envio(pl):
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
-st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido en Excelencia Consultora. Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
 if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.toast('Datos Guardados Correctamente!', icon='✅')
@@ -535,16 +536,15 @@ with tab4: # MÁQUINA
                             elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                             else: estado = "✅ Ideal"
 
-                    # --- NUEVA COLUMNA ENCARGADOS ---
+                    # --- NUEVA LÓGICA DE ENCARGADOS ---
                     enc_list = dm['responsable_cargo'].dropna().unique().tolist()
                     enc_str = ", ".join(enc_list) if enc_list else "-"
-                    # --------------------------------
-
+                    
                     res.append({
                         "Mes": mn[i-1], 
                         "Encargados": enc_str, # <--- AÑADIDO
                         "Litros": round(l_total, 1), 
-                        "Promedio": round(pr, 2),
+                        "Promedio": round(pr, 2), 
                         "Estado": estado
                     })
                 
@@ -575,6 +575,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
-
-
