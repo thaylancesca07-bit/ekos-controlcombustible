@@ -119,8 +119,18 @@ with tab1: # REGISTRO
     with c_auth2: pwd_input = st.text_input("Contraseña:", type="password")
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
-        if encargado_sel == "Auditoria": op_barril, op_origen = BARRILES_LISTA, BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
-        else: mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]; op_barril, op_origen = [mi_barril], [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
+        
+        # --- LÓGICA DE PERMISOS CORREGIDA PARA NATALIA Y AUDITORIA ---
+        # Si el barril asignado es "Acceso Total", ve todo. Si no, solo su barril.
+        if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
+            op_barril = BARRILES_LISTA
+            op_origen = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
+        else: 
+            mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
+            op_barril = [mi_barril] 
+            op_origen = [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
+        # -------------------------------------------------------------
+
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
@@ -454,6 +464,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
