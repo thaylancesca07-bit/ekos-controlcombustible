@@ -41,29 +41,29 @@ BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
+    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
+    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
+    "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
+    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
+    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
     "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0},
-    "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0},
-    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
-    "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
-    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
-    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
-    "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
-    "V-07": {"nombre": "Valmet 1580", "unidad": "Horas", "ideal": 11.0},
-    "TM-01": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
-    "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
-    "V-02": {"nombre": "Valmet 785", "unidad": "Horas", "ideal": 7.0},
-    "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
     "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas", "ideal": 5.0},
-    "TF01": {"nombre": "Ford", "unidad": "Horas", "ideal": 0.0},
+    "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
+    "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
-    "S-08": {"nombre": "Scania Rojo", "unidad": "KM", "ideal": 2.2},
-    "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
-    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
+    "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0},
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
+    "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
     "S-07": {"nombre": "Scania R380", "unidad": "Horas", "ideal": 0.0},
-    "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0}
+    "S-08": {"nombre": "Scania Rojo", "unidad": "KM", "ideal": 2.2},
+    "TF01": {"nombre": "Ford", "unidad": "Horas", "ideal": 0.0},
+    "TM-01": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
+    "V-02": {"nombre": "Valmet 785", "unidad": "Horas", "ideal": 7.0},
+    "V-07": {"nombre": "Valmet 1580", "unidad": "Horas", "ideal": 11.0},
+    "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
+    "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0}
 }
 
 class PDF(FPDF):
@@ -453,4 +453,5 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
