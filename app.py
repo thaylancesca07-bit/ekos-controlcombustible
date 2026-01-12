@@ -175,7 +175,7 @@ with tab1: # REGISTRO
                     try: requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
                     except: st.error("Error conexión.")
 
-with tab2: # AUDITORÍA
+with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -197,17 +197,32 @@ with tab2: # AUDITORÍA
                     cols[i].metric(label=f"🛢️ {b}", value=f"{ent - sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
-                c1, c2 = st.columns(2)
+                
+                # --- NUEVO FILTRO POR ENCARGADO ---
+                c1, c2, c3 = st.columns(3) # AHORA SON 3 COLUMNAS
                 d1 = c1.date_input("Desde", date.today()-timedelta(30), format="DD/MM/YYYY")
                 d2 = c2.date_input("Hasta", date.today(), format="DD/MM/YYYY")
-                dff = df[(df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)]
+                # Selector de Encargado (Todos + Lista de Nombres)
+                enc_filter = c3.selectbox("Filtrar Encargado", ["Todos"] + list(ENCARGADOS_DATA.keys()))
+                
+                # APLICAR FILTROS
+                mask = (df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)
+                if enc_filter != "Todos":
+                    # Filtra si la columna responsable_cargo coincide con la selección
+                    if 'responsable_cargo' in df.columns:
+                        mask = mask & (df['responsable_cargo'] == enc_filter)
+                
+                dff = df[mask]
+                # ----------------------------------
                 
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    st.dataframe(dff[cols_ver].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
+                    # Validar que existan las columnas
+                    cols_exist = [c for c in cols_ver if c in dff.columns]
+                    st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    st.subheader("📊 Rendimiento General (Resumen)")
+                    st.subheader("📊 Rendimiento General")
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
@@ -232,25 +247,20 @@ with tab2: # AUDITORÍA
                                     val_lkm = 0.0
                                     val_lh = 0.0
                                     
-                                    # CÁLCULOS SEGÚN UNIDAD (Para mostrar las 3 columnas)
                                     if FLOTA[cod]['unidad'] == 'KM':
                                         if l_ajustados > 0: val_kml = rec_real / l_ajustados
                                         if rec_real > 0: val_lkm = l_ajustados / rec_real
-                                        # val_lh se queda en 0.0
                                     else: # Horas
-                                        if rec_real > 0: val_lh = l_ajustados / rec_real
-                                        # val_kml y val_lkm se quedan en 0.0
+                                        if rec_real > 0: val_lh = l_ajustados / rec_real 
                                     
-                                    # LÓGICA DE ESTADO (Para la nota)
                                     estado = "N/A"
                                     if l_total > 0 and (val_kml > 0 or val_lh > 0):
                                         ideal = FLOTA[cod]['ideal']
                                         if FLOTA[cod]['unidad'] == 'KM':
-                                            # Usamos Km/L como referencia principal
                                             if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                                             elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                                             else: estado = "✅ Ideal"
-                                        else: # L/H
+                                        else: 
                                             if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                                             elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                                             else: estado = "✅ Ideal"
@@ -279,13 +289,12 @@ with tab2: # AUDITORÍA
                             
                             st.markdown("### 📥 Descargas")
                             c1, c2, c3 = st.columns(3)
-                            c1.download_button("Excel", generar_excel(dff[cols_ver]), "Historial.xlsx")
+                            c1.download_button("Excel", generar_excel(dff[cols_exist]), "Historial.xlsx")
                             c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
                             c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                     else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
-
 with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
@@ -444,3 +453,4 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
