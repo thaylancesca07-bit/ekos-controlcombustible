@@ -34,6 +34,7 @@ ENCARGADOS_DATA = {
     "Diego Bordon": {"pwd": "db2026", "barril": "Barril Diego"},
     "Jonatan Vargas": {"pwd": "jv2026", "barril": "Barril Jonatan"},
     "Cesar Cabañas": {"pwd": "cc2026", "barril": "Barril Cesar"},
+    "Natalia Santana": {"pwd": "Santana2057", "barril": "Acceso Total"}, # <--- NUEVA
     "Auditoria": {"pwd": "1645", "barril": "Acceso Total"}
 }
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
@@ -453,6 +454,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
