@@ -54,7 +54,7 @@ FLOTA = {
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
-    "O-01": {"nombre": "Ranger Alquilada 1", "unidad": "KM", "ideal": 9.0},
+    "O-01": {"nombre": "Otros", "unidad": "Horas", "ideal": 0.0},
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
     "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
@@ -106,7 +106,6 @@ def generar_word(df, titulo):
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
-# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN ---
 @st.dialog("📝 Confirmar Información")
 def confirmar_envio(pl):
     st.markdown("### Por favor, verifica que todo esté correcto:")
@@ -190,7 +189,6 @@ with tab1: # REGISTRO
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
-                # --- AÑADIDA OPCIÓN MANUAL ---
                 lista_maquinas = [f"{k} - {v['nombre']}" for k, v in FLOTA.items()]
                 lista_maquinas.append("➕ OTRO (Manual)")
                 
@@ -205,7 +203,6 @@ with tab1: # REGISTRO
                 else:
                     cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
                     origen = st.selectbox("Origen:", op_origen)
-                # -----------------------------
             else: 
                 cod_f = st.selectbox("Barril:", op_barril)
                 nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", SURTIDORES)
@@ -229,7 +226,6 @@ with tab1: # REGISTRO
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
             if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
-                # VALIDACION EXTRA PARA MANUAL
                 error_manual = False
                 if "Máquina" in operacion and sel_m == "➕ OTRO (Manual)":
                     if not cod_f or not nom_f:
@@ -245,14 +241,17 @@ with tab1: # REGISTRO
                     
                     mc = 0.0
                     try: 
-                        # Solo calculamos media si el codigo existe en FLOTA, si es manual no podemos (no hay historial seguro aun)
-                        if "Máquina" in operacion and lect_val > 0 and cod_f in FLOTA:
+                        # --- CALCULO MEDIA PARA TODOS (INCLUIDOS MANUALES) ---
+                        if "Máquina" in operacion and lect_val > 0:
                             df_h = pd.read_csv(SHEET_URL); df_h.columns = df_h.columns.str.strip().str.lower()
                             if 'lectura_actual' in df_h.columns:
                                 df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
+                                # Buscar si este código existe en el historial
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
-                                if lect_val > ult and lts_val > 0: mc = (lect_val - ult) / lts_val
+                                # Si existe un registro previo y es menor a la actual, calculamos
+                                if ult > 0 and lect_val > ult and lts_val > 0: 
+                                    mc = (lect_val - ult) / lts_val
                     except: pass
                     
                     img_str, img_name, img_mime = "", "", ""
@@ -322,51 +321,55 @@ with tab2: # AUDITORÍA
                             codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
                             
                             for cod in codigos_ordenados:
-                                # AQUI FILTRAMOS SOLO LAS QUE ESTAN EN FLOTA PARA EL ANALISIS DETALLADO
-                                # SI SE AGREGA UNA MANUAL, APARECERA EN DETALLE PERO NO AQUI HASTA AGREGARLA AL CODIGO
-                                if cod in FLOTA:
-                                    dm = df_maq[df_maq['codigo_maquina'] == cod]
-                                    l_total = dm['litros'].sum()
-                                    lect_max = dm['lectura_actual'].max()
-                                    lect_min = dm['lectura_actual'].min()
-                                    rec_real = lect_max - lect_min
-                                    
-                                    if len(dm) > 1:
-                                        dm_sorted = dm.sort_values('lectura_actual')
-                                        l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
-                                    else: l_ajustados = l_total
+                                # --- MODIFICADO: AHORA INCLUYE TODOS (MANUALES TAMBIEN) ---
+                                dm = df_maq[df_maq['codigo_maquina'] == cod]
+                                l_total = dm['litros'].sum()
+                                lect_max = dm['lectura_actual'].max()
+                                lect_min = dm['lectura_actual'].min()
+                                rec_real = lect_max - lect_min
+                                
+                                if len(dm) > 1:
+                                    dm_sorted = dm.sort_values('lectura_actual')
+                                    l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
+                                else: l_ajustados = l_total
 
-                                    val_kml = 0.0
-                                    val_lkm = 0.0
-                                    val_lh = 0.0
-                                    
+                                val_kml = 0.0
+                                val_lkm = 0.0
+                                val_lh = 0.0
+                                
+                                # Si está en flota, usamos su unidad correcta
+                                if cod in FLOTA:
                                     if FLOTA[cod]['unidad'] == 'KM':
                                         if l_ajustados > 0: val_kml = rec_real / l_ajustados
                                         if rec_real > 0: val_lkm = l_ajustados / rec_real
                                     else:
                                         if rec_real > 0: val_lh = l_ajustados / rec_real 
+                                # Si NO está en flota (Manual), intentamos calcular ambos
+                                else:
+                                    if l_ajustados > 0: val_kml = rec_real / l_ajustados # Asumiendo KM
+                                    if rec_real > 0: val_lh = l_ajustados / rec_real # Asumiendo Horas
                                     
-                                    estado = "N/A"
-                                    if l_total > 0 and (val_kml > 0 or val_lh > 0):
-                                        ideal = FLOTA[cod]['ideal']
-                                        if FLOTA[cod]['unidad'] == 'KM':
-                                            if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                            elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
-                                            else: estado = "✅ Ideal"
-                                        else: 
-                                            if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                            elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
-                                            else: estado = "✅ Ideal"
+                                estado = "N/A"
+                                if cod in FLOTA and l_total > 0 and (val_kml > 0 or val_lh > 0):
+                                    ideal = FLOTA[cod]['ideal']
+                                    if FLOTA[cod]['unidad'] == 'KM':
+                                        if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                        elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                        else: estado = "✅ Ideal"
+                                    else: 
+                                        if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                        elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                        else: estado = "✅ Ideal"
 
-                                    res.append({
-                                        "Código": cod,
-                                        "Recorrido": round(rec_real, 1),
-                                        "Litros": round(l_total, 1),
-                                        "Km/L": round(val_kml, 2),
-                                        "L/Km": round(val_lkm, 2),
-                                        "L/H": round(val_lh, 2),
-                                        "Estado": estado
-                                    })
+                                res.append({
+                                    "Código": cod,
+                                    "Recorrido": round(rec_real, 1),
+                                    "Litros": round(l_total, 1),
+                                    "Km/L": round(val_kml, 2),
+                                    "L/Km": round(val_lkm, 2),
+                                    "L/H": round(val_lh, 2),
+                                    "Estado": estado
+                                })
                             
                             df_res = pd.DataFrame(res)
                             
@@ -475,7 +478,23 @@ with tab4: # MÁQUINA
             dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True)
             
             c1, c2 = st.columns(2)
-            maq = c1.selectbox("Máquina", [f"{k} - {v['nombre']}" for k,v in FLOTA.items()])
+            
+            # --- LISTA COMBINADA PARA SELECTOR (FLOTA + MANUALES EN DB) ---
+            # Obtenemos códigos únicos del historial
+            codigos_db = dfm['codigo_maquina'].unique().tolist()
+            # Creamos lista base con la Flota Oficial
+            opciones_maquina = [f"{k} - {v['nombre']}" for k, v in FLOTA.items()]
+            # Añadimos los manuales que no estén en flota
+            for c in codigos_db:
+                if c not in FLOTA and isinstance(c, str):
+                    opciones_maquina.append(f"{c} - (Manual)")
+            
+            # Ordenar alfabéticamente
+            opciones_maquina.sort()
+            
+            maq = c1.selectbox("Máquina", opciones_maquina)
+            # ---------------------------------------------------------------
+            
             y = c2.selectbox("Año", [2024, 2025, 2026], index=1)
             cod = maq.split(" - ")[0]
             
@@ -496,16 +515,26 @@ with tab4: # MÁQUINA
                         else:
                             l_ajustados = l_total
 
-                        if FLOTA[cod]['unidad'] == 'KM':
-                            pr = rec/l_ajustados if l_ajustados > 0 else 0
+                        # LOGICA PROMEDIO HIBRIDA
+                        if cod in FLOTA:
+                            if FLOTA[cod]['unidad'] == 'KM':
+                                pr = rec/l_ajustados if l_ajustados > 0 else 0
+                            else:
+                                pr = l_ajustados/rec if rec > 0 else 0
                         else:
-                            pr = l_ajustados/rec if rec > 0 else 0
+                            # Si es manual, no sabemos la unidad segura. 
+                            # Intentamos deducir: si rec > l_ajustados es probable KM (ej: 500km / 50l = 10)
+                            # Si l_ajustados > rec es probable Hora (ej: 50l / 5h = 10)
+                            if rec > l_ajustados:
+                                pr = rec/l_ajustados if l_ajustados > 0 else 0 # Km/L
+                            else:
+                                pr = l_ajustados/rec if rec > 0 else 0 # L/H
                     else:
                         pr = 0
                         l_total = 0
                     
                     estado = "N/A"
-                    if l_total > 0 and pr > 0:
+                    if cod in FLOTA and l_total > 0 and pr > 0:
                         ideal = FLOTA[cod]['ideal']
                         if FLOTA[cod]['unidad'] == 'KM':
                             if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
@@ -524,13 +553,16 @@ with tab4: # MÁQUINA
                     })
                 
                 dr = pd.DataFrame(res)
-                st.subheader(f"📊 {maq} (Ideal: {FLOTA[cod]['ideal']} {FLOTA[cod]['unidad']})")
+                st.subheader(f"📊 {maq}")
                 c1, c2 = st.columns(2)
                 
                 fig_line, ax_line = plt.subplots(figsize=(6, 4))
                 fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
                 ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
-                ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label='Ideal')
+                
+                if cod in FLOTA:
+                    ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label='Ideal')
+                
                 ax_line.set_title("Rendimiento"); ax_line.legend(); ax_line.grid(True, alpha=0.3)
                 c1.pyplot(fig_line)
                 
@@ -547,4 +579,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
