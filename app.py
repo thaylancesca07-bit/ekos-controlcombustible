@@ -106,7 +106,7 @@ def generar_word(df, titulo):
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
-# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (NUEVO) ---
+# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN ---
 @st.dialog("📝 Confirmar Información")
 def confirmar_envio(pl):
     st.markdown("### Por favor, verifica que todo esté correcto:")
@@ -168,10 +168,9 @@ with tab1: # REGISTRO
     
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         
-        # --- LISTA DE SURTIDORES ACTUALIZADA ---
+        # --- LISTA DE SURTIDORES ---
         SURTIDORES = ["Surtidor Petrobras", "Surtidor Shell", "Surtidor Crisma", "Surtidor Puma"]
-        # ---------------------------------------
-
+        
         # PERMISOS
         if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
             op_barril = BARRILES_LISTA
@@ -190,41 +189,49 @@ with tab1: # REGISTRO
                 cod_f, nom_f, unidad = sel_m.split(" - ")[0], FLOTA[sel_m.split(" - ")[0]]['nombre'], FLOTA[sel_m.split(" - ")[0]]['unidad']
                 origen = st.selectbox("Origen:", op_origen)
             else: 
-                # LÓGICA BARRIL CON NUEVOS SURTIDORES
                 cod_f = st.selectbox("Barril:", op_barril)
                 nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", SURTIDORES)
 
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
-        # FORMULARIO
         with st.form("f_reg", clear_on_submit=False):
             c1, c2 = st.columns(2)
             chofer = c1.text_input("Chofer")
             fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY")
             act = c1.text_input("Actividad")
-            lts = c2.number_input("Litros", min_value=0.0, step=0.1)
+            
+            # --- MODIFICADO: VALUE=NONE PARA QUE ESTÉ VACÍO ---
+            lts = c2.number_input("Litros", min_value=0.0, step=0.1, value=None)
             
             if "Máquina" in operacion:
-                lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0)
+                lect = c2.number_input(f"Lectura ({unidad})", min_value=0.0, value=None)
             else:
                 lect = 0.0
+            # --------------------------------------------------
 
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
             if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
-                if not chofer or not act: 
-                    st.warning("⚠️ Falta Chofer o Actividad.")
+                # VALIDAR QUE HAYA NÚMEROS (Porque None cuenta como vacío)
+                if not chofer or not act or lts is None: 
+                    st.warning("⚠️ Faltan datos (Chofer, Actividad o Litros).")
+                elif "Máquina" in operacion and lect is None:
+                    st.warning("⚠️ Falta la Lectura.")
                 else:
+                    # CONVERTIR NONE A 0.0 PARA CÁLCULOS
+                    lts_val = lts if lts is not None else 0.0
+                    lect_val = lect if lect is not None else 0.0
+                    
                     mc = 0.0
                     try: 
-                        if "Máquina" in operacion and lect > 0:
+                        if "Máquina" in operacion and lect_val > 0:
                             df_h = pd.read_csv(SHEET_URL); df_h.columns = df_h.columns.str.strip().str.lower()
                             if 'lectura_actual' in df_h.columns:
                                 df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
                                 ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
-                                if lect > ult and lts > 0: mc = (lect - ult) / lts
+                                if lect_val > ult and lts_val > 0: mc = (lect_val - ult) / lts_val
                     except: pass
                     
                     img_str, img_name, img_mime = "", "", ""
@@ -239,7 +246,7 @@ with tab1: # REGISTRO
                     pl = {
                         "fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, 
                         "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, 
-                        "lectura_actual": lect, "litros": lts, "tipo_combustible": tipo_comb, "media": mc,
+                        "lectura_actual": lect_val, "litros": lts_val, "tipo_combustible": tipo_comb, "media": mc,
                         "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL",
                         "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime
                     }
@@ -446,7 +453,7 @@ with tab4: # MÁQUINA
             
             c1, c2 = st.columns(2)
             maq = c1.selectbox("Máquina", [f"{k} - {v['nombre']}" for k,v in FLOTA.items()])
-            y = c2.selectbox("Año", [2024, 2025, 2026,2027,2028,2029,2030], index=1)
+            y = c2.selectbox("Año", [2024, 2025, 2026], index=1)
             cod = maq.split(" - ")[0]
             
             dy = dfm[(dfm['codigo_maquina'] == cod) & (dfm['fecha'].dt.year == y)]
@@ -517,4 +524,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
