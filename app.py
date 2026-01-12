@@ -34,7 +34,7 @@ ENCARGADOS_DATA = {
     "Diego Bordon": {"pwd": "db2026", "barril": "Barril Diego"},
     "Jonatan Vargas": {"pwd": "jv2026", "barril": "Barril Jonatan"},
     "Cesar Cabañas": {"pwd": "cc2026", "barril": "Barril Cesar"},
-    "Natalia Santana": {"pwd": "Santana2057", "barril": "Acceso Total"}, # <--- NUEVA
+    "Natalia Santana": {"pwd": "Santana2057", "barril": "Acceso Total"},
     "Auditoria": {"pwd": "1645", "barril": "Acceso Total"}
 }
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
@@ -45,7 +45,7 @@ FLOTA = {
     "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
     "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
     "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
-    "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0}, # <--- NUEVA
+    "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0},
     "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
     "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
@@ -67,6 +67,7 @@ FLOTA = {
     "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
     "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0}
 }
+
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
@@ -102,9 +103,56 @@ def generar_word(df, titulo):
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
 
-# ESTILO TABLA ESTÁNDAR
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
+
+# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (NUEVO) ---
+@st.dialog("📝 Confirmar Información")
+def confirmar_envio(pl):
+    st.markdown("### Por favor, verifica que todo esté correcto:")
+    
+    st.write(f"**Fecha:** {pl['fecha']}")
+    st.write(f"**Encargado:** {pl['responsable_cargo']}")
+    st.write(f"**Operación:** {pl['tipo_operacion']}")
+    
+    if "Máquina" in pl['tipo_operacion']:
+        st.write(f"**Máquina:** {pl['codigo_maquina']} - {pl['nombre_maquina']}")
+        st.write(f"**Lectura Actual:** {pl['lectura_actual']}")
+    else:
+        st.write(f"**Barril:** {pl['codigo_maquina']}")
+    
+    st.write(f"**Origen:** {pl['origen']}")
+    st.write(f"**Combustible:** {pl['tipo_combustible']}")
+    st.write(f"**Litros:** {pl['litros']}")
+    st.write(f"**Chofer:** {pl['chofer']}")
+    st.write(f"**Actividad:** {pl['actividad']}")
+    
+    if pl['imagen_base64']:
+        st.success("📸 Foto Adjuntada")
+    else:
+        st.info("No se adjuntó foto")
+
+    st.markdown("---")
+    st.warning("¿Estás seguro de guardar estos datos?")
+    
+    col_a, col_b = st.columns(2)
+    
+    if col_a.button("✅ SÍ, GUARDAR", type="primary"):
+        try:
+            requests.post(SCRIPT_URL, json=pl)
+            st.toast('Datos Guardados Correctamente!', icon='✅')
+            st.markdown("""
+                <audio autoplay>
+                    <source src="https://www.soundjay.com/buttons/sounds/button-3.mp3" type="audio/mpeg">
+                </audio>
+                """, unsafe_allow_html=True)
+            time.sleep(1)
+            st.rerun() # Recargar para limpiar
+        except:
+            st.error("Error de conexión")
+            
+    if col_b.button("❌ CANCELAR"):
+        st.rerun()
 
 # --- INTERFAZ ---
 st.title("⛽ Ekos Forestal / Control de combustible")
@@ -117,11 +165,10 @@ with tab1: # REGISTRO
     c_auth1, c_auth2 = st.columns(2)
     with c_auth1: encargado_sel = st.selectbox("Encargado:", list(ENCARGADOS_DATA.keys()))
     with c_auth2: pwd_input = st.text_input("Contraseña:", type="password")
+    
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
-        operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
         
-        # --- LÓGICA DE PERMISOS CORREGIDA PARA NATALIA Y AUDITORIA ---
-        # Si el barril asignado es "Acceso Total", ve todo. Si no, solo su barril.
+        # PERMISOS
         if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
             op_barril = BARRILES_LISTA
             op_origen = BARRILES_LISTA + ["Surtidor Petrobras", "Surtidor Shell"]
@@ -129,8 +176,9 @@ with tab1: # REGISTRO
             mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
             op_barril = [mi_barril] 
             op_origen = [mi_barril, "Surtidor Petrobras", "Surtidor Shell"]
-        # -------------------------------------------------------------
 
+        operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
+        
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
@@ -140,9 +188,12 @@ with tab1: # REGISTRO
             else: cod_f = st.selectbox("Barril:", op_barril); nom_f, unidad, origen = cod_f, "Litros", st.selectbox("Surtidor:", ["Surtidor Petrobras", "Surtidor Shell"])
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
-        with st.form("f_reg", clear_on_submit=True):
+        # FORMULARIO (Sin limpiar automáticamente para permitir revisión)
+        with st.form("f_reg", clear_on_submit=False):
             c1, c2 = st.columns(2)
-            chofer = c1.text_input("Chofer"); fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY"); act = c1.text_input("Actividad")
+            chofer = c1.text_input("Chofer")
+            fecha = c1.date_input("Fecha", date.today(), format="DD/MM/YYYY")
+            act = c1.text_input("Actividad")
             lts = c2.number_input("Litros", min_value=0.0, step=0.1)
             
             if "Máquina" in operacion:
@@ -153,8 +204,10 @@ with tab1: # REGISTRO
             st.markdown("---")
             foto = st.file_uploader("📸 Foto Evidencia (Opcional)", type=["jpg", "png", "jpeg"])
 
-            if st.form_submit_button("✅ GUARDAR"):
-                if not chofer or not act: st.warning("Completa todo.")
+            # BOTÓN CAMBIADO A "REVISAR"
+            if st.form_submit_button("🔎 REVISAR DATOS ANTES DE GUARDAR"):
+                if not chofer or not act: 
+                    st.warning("⚠️ Falta Chofer o Actividad.")
                 else:
                     mc = 0.0
                     try: 
@@ -183,10 +236,11 @@ with tab1: # REGISTRO
                         "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL",
                         "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime
                     }
-                    try: requests.post(SCRIPT_URL, json=pl); st.success("Guardado.")
-                    except: st.error("Error conexión.")
+                    
+                    # LLAMAR AL POP-UP CENTRADO
+                    confirmar_envio(pl)
 
-with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
+with tab2: # AUDITORÍA
     if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
         try:
             df = pd.read_csv(SHEET_URL)
@@ -208,32 +262,25 @@ with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
                     cols[i].metric(label=f"🛢️ {b}", value=f"{ent - sal:.1f} L")
                 
                 st.markdown("---"); st.subheader("📅 Historial")
-                
-                # --- NUEVO FILTRO POR ENCARGADO ---
-                c1, c2, c3 = st.columns(3) # AHORA SON 3 COLUMNAS
+                c1, c2, c3 = st.columns(3)
                 d1 = c1.date_input("Desde", date.today()-timedelta(30), format="DD/MM/YYYY")
                 d2 = c2.date_input("Hasta", date.today(), format="DD/MM/YYYY")
-                # Selector de Encargado (Todos + Lista de Nombres)
                 enc_filter = c3.selectbox("Filtrar Encargado", ["Todos"] + list(ENCARGADOS_DATA.keys()))
                 
-                # APLICAR FILTROS
                 mask = (df['fecha'].dt.date >= d1) & (df['fecha'].dt.date <= d2)
                 if enc_filter != "Todos":
-                    # Filtra si la columna responsable_cargo coincide con la selección
                     if 'responsable_cargo' in df.columns:
                         mask = mask & (df['responsable_cargo'] == enc_filter)
                 
                 dff = df[mask]
-                # ----------------------------------
                 
                 if not dff.empty:
                     st.subheader("📋 Detalle")
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
-                    # Validar que existan las columnas
                     cols_exist = [c for c in cols_ver if c in dff.columns]
                     st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    st.subheader("📊 Rendimiento General")
+                    st.subheader("📊 Rendimiento General (Resumen)")
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
@@ -253,7 +300,6 @@ with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
                                         l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
                                     else: l_ajustados = l_total
 
-                                    # INICIALIZAR LAS 3 METRICAS
                                     val_kml = 0.0
                                     val_lkm = 0.0
                                     val_lh = 0.0
@@ -261,7 +307,7 @@ with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
                                     if FLOTA[cod]['unidad'] == 'KM':
                                         if l_ajustados > 0: val_kml = rec_real / l_ajustados
                                         if rec_real > 0: val_lkm = l_ajustados / rec_real
-                                    else: # Horas
+                                    else:
                                         if rec_real > 0: val_lh = l_ajustados / rec_real 
                                     
                                     estado = "N/A"
@@ -306,6 +352,7 @@ with tab2: # AUDITORÍA CON FILTRO POR ENCARGADO
                     else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
+
 with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
         st.subheader("🔍 Conciliación Total")
@@ -393,7 +440,7 @@ with tab4: # MÁQUINA
             
             c1, c2 = st.columns(2)
             maq = c1.selectbox("Máquina", [f"{k} - {v['nombre']}" for k,v in FLOTA.items()])
-            y = c2.selectbox("Año", [2024, 2025, 2026], index=1)
+            y = c2.selectbox("Año", [2024, 2025, 2026,2027,2028,2029,2030], index=1)
             cod = maq.split(" - ")[0]
             
             dy = dfm[(dfm['codigo_maquina'] == cod) & (dfm['fecha'].dt.year == y)]
@@ -464,8 +511,3 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
-
-
-
-
-
