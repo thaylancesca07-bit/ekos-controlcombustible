@@ -357,7 +357,27 @@ with tab1: # REGISTRO
                     confirmar_envio(pl)
 
 with tab2: # AUDITORÍA
-    if st.text_input("PIN Auditoría", type="password", key="p1") == ACCESS_CODE_MAESTRO:
+    st.subheader("🔐 Acceso Restringido")
+    
+    # 1. Sistema de Login Diferenciado
+    c_login1, c_login2 = st.columns(2)
+    with c_login1:
+        # Seleccionamos quién está entrando
+        usuario_auditoria = st.selectbox("Usuario:", ["Auditoria", "Natalia Santana"])
+    with c_login2:
+        # Pedimos la contraseña
+        pass_auditoria = st.text_input("Contraseña:", type="password", key="pass_auditoria_tab2")
+
+    # Definimos las credenciales válidas para este Tab
+    credenciales_validas = {
+        "Auditoria": "1645",          # Clave de Auditoría
+        "Natalia Santana": "Santana2057" # Clave de Natalia
+    }
+
+    # Verificamos si la contraseña coincide con el usuario seleccionado
+    if pass_auditoria == credenciales_validas.get(usuario_auditoria):
+        
+        # --- AQUÍ COMIENZA EL CÓDIGO ORIGINAL QUE MUESTRA LOS DATOS ---
         try:
             df = pd.read_csv(SHEET_URL)
             if not df.empty:
@@ -446,31 +466,40 @@ with tab2: # AUDITORÍA
                             c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
                             c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                     
-                    # --- NUEVA SECCIÓN DE EXCELENCIA CONSULTORA ---
+                    # --- AQUÍ ESTÁ EL FILTRO DE SEGURIDAD PARA INFORMES ---
                     st.markdown("---")
-                    with st.expander("📂 Fuente de Informe Excelencia Consultora"):
-                        st.markdown(".")
-                        pass_excelencia = st.text_input("Contraseña de Acceso:", type="password", key="pass_exc")
-                        
-                        if pass_excelencia == PASS_EXCELENCIA:
-                            if enc_filter == "Todos":
-                                st.warning("⚠️ Por favor, selecciona un Encargado Específico en el filtro de arriba para generar su informe personal.")
-                            else:
-                                if st.button(f"📄 Generar Informe Corporativo para {enc_filter}"):
-                                    docx_bytes = generar_informe_corporativo(enc_filter, dff, d1, d2)
-                                    st.download_button(
-                                        label="⬇️ Descargar Informe.docx",
-                                        data=docx_bytes,
-                                        file_name=f"Informe_Gestion_{enc_filter}_{date.today()}.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                    )
-                        elif pass_excelencia:
-                            st.error("Contraseña incorrecta.")
+                    
+                    if usuario_auditoria == "Auditoria":
+                        # SOLO SE MUESTRA SI ES AUDITORIA
+                        with st.expander("📂 Fuente de Informe Excelencia Consultora (ADMIN)"):
+                            st.markdown("Generación de informes corporativos.")
+                            pass_excelencia = st.text_input("Contraseña de Acceso:", type="password", key="pass_exc")
+                            
+                            if pass_excelencia == PASS_EXCELENCIA:
+                                if enc_filter == "Todos":
+                                    st.warning("⚠️ Por favor, selecciona un Encargado Específico en el filtro de arriba para generar su informe personal.")
+                                else:
+                                    if st.button(f"📄 Generar Informe Corporativo para {enc_filter}"):
+                                        docx_bytes = generar_informe_corporativo(enc_filter, dff, d1, d2)
+                                        st.download_button(
+                                            label="⬇️ Descargar Informe.docx",
+                                            data=docx_bytes,
+                                            file_name=f"Informe_Gestion_{enc_filter}_{date.today()}.docx",
+                                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                        )
+                            elif pass_excelencia:
+                                st.error("Contraseña incorrecta.")
+                    else:
+                        # MENSAJE PARA NATALIA U OTROS USUARIOS
+                        st.info("ℹ️ La sección de generación de Informes Corporativos está restringida únicamente al usuario 'Auditoria'.")
+
                     # ----------------------------------------------
 
-                        else: st.info("Falta columna tipo_operacion.")
+                    else: st.info("Falta columna tipo_operacion.")
                 else: st.info("Sin datos.")
         except Exception as e: st.error(e)
+    elif pass_auditoria:
+        st.error("❌ Contraseña incorrecta para el usuario seleccionado.")
 
 with tab3: # VERIFICACIÓN
     if st.text_input("PIN Conciliación", type="password", key="p2") == ACCESS_CODE_MAESTRO:
@@ -606,5 +635,6 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
