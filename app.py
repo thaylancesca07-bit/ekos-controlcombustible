@@ -55,7 +55,7 @@ FLOTA = {
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
     "MICHIGAN": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
     "O-01": {"nombre": "Ranger Alquilada", "unidad": "KM", "ideal": 9.0},
-    "O-01": {"nombre": "Otros no listados", "unidad": "Horas", "ideal": 0.0},
+    "O-02": {"nombre": "Otros no listados", "unidad": "Horas", "ideal": 0.0},
     "S-03": {"nombre": "Scania 113H", "unidad": "KM", "ideal": 2.3},
     "S-05": {"nombre": "Scania Azul", "unidad": "KM", "ideal": 2.4},
     "S-06": {"nombre": "Scania P112H", "unidad": "Horas", "ideal": 0.0},
@@ -529,5 +529,6 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
