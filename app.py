@@ -106,7 +106,7 @@ def generar_word(df, titulo):
 def estilo_tabla(df):
     return df.style.set_properties(**{'background-color': '#fffcf0', 'color': 'black', 'border': '1px solid #b0a890'})
 
-# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (OPTIMIZADA) ---
+# --- FUNCIÓN DE DIÁLOGO DE CONFIRMACIÓN (CORREGIDA) ---
 @st.dialog("📝 Confirmar Información")
 def confirmar_envio(pl):
     st.markdown("### Por favor, verifica que todo esté correcto:")
@@ -134,13 +134,18 @@ def confirmar_envio(pl):
     col_a, col_b = st.columns(2)
     
     if col_a.button("✅ SÍ, GUARDAR", type="primary"):
+        envio_exitoso = False
         try:
+            # Intentamos enviar
             requests.post(SCRIPT_URL, json=pl)
-            # ACTIVAR ESTADO DE EXITO Y CERRAR VENTANA AL INSTANTE
+            envio_exitoso = True
+        except:
+            st.error("Error REAL de conexión. Verifica tu internet.")
+        
+        # Si se envió bien, activamos el estado y recargamos FUERA del try/except
+        if envio_exitoso:
             st.session_state['exito_guardado'] = True
             st.rerun()
-        except:
-            st.error("Error de conexión")
             
     if col_b.button("❌ CANCELAR"):
         st.rerun()
@@ -149,7 +154,7 @@ def confirmar_envio(pl):
 st.title("⛽ Ekos Forestal / Control de combustible")
 st.markdown("""<p style='font-size: 18px; color: gray; margin-top: -20px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-size: 14px; font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
 
-# --- VERIFICACIÓN DE ÉXITO (SE EJECUTA AL INICIO PARA MOSTRAR AVISO DESPUÉS DE CERRAR LA VENTANA) ---
+# --- VERIFICACIÓN DE ÉXITO (SE EJECUTA AL INICIO) ---
 if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.toast('Datos Guardados Correctamente!', icon='✅')
     st.markdown("""
