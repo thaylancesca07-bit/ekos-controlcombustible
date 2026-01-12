@@ -270,7 +270,7 @@ if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.markdown("""<audio autoplay><source src="https://www.soundjay.com/buttons/sounds/button-3.mp3" type="audio/mpeg"></audio>""", unsafe_allow_html=True)
     st.session_state['exito_guardado'] = False 
 
-tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Máquina por Máquina"])
+tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Analisis Anual por Máquina"])
 
 with tab1: # REGISTRO
     st.subheader("🔑 Acceso de Encargado")
@@ -448,8 +448,8 @@ with tab2: # AUDITORÍA
                     
                     # --- NUEVA SECCIÓN DE EXCELENCIA CONSULTORA ---
                     st.markdown("---")
-                    with st.expander("📂 Informe Excelencia Consultora (Corporativo)"):
-                        st.markdown("Esta sección genera un informe Word detallado y redactado profesionalmente para el encargado seleccionado.")
+                    with st.expander("📂 Fuente de Informe Excelencia Consultora"):
+                        st.markdown(".")
                         pass_excelencia = st.text_input("Contraseña de Acceso:", type="password", key="pass_exc")
                         
                         if pass_excelencia == PASS_EXCELENCIA:
@@ -606,4 +606,5 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
