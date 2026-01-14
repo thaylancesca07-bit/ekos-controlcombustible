@@ -1,0 +1,15 @@
+name: Keep Streamlit Alive
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"  # Roda a cada 15 minutos (tempo ideal)
+  workflow_dispatch:        # Permite rodar manualmente se precisar
+
+jobs:
+  ping_site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pingar o Site
+        run: |
+          # O parâmetro $(date +%s) cria um número único para evitar cache
+          curl -I "https://SEU-APP.streamlit.app/?keepalive=$(date +%s)"
