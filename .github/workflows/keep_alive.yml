@@ -1,0 +1,23 @@
+name: Keep Streamlit Alive
+
+# Define QUANDO o robô vai rodar
+on:
+  schedule:
+    # A sintaxe cron abaixo significa: "Rodar a cada 15 minutos"
+    # Você pode mudar o 15 para 20 ou 30 se preferir.
+    - cron: "*/15 * * * *"
+  
+  # Permite que você clique num botão para rodar manualmente (ótimo para testar)
+  workflow_dispatch:
+
+jobs:
+  ping_site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar o App
+        run: |
+          # O comando curl acessa o site.
+          # O trecho $(date +%s) adiciona um número aleatório no final do link.
+          # Isso engana o cache, fazendo o servidor achar que é uma visita nova.
+          
+          curl -I "https://ekos-controlcombustible.streamlit.app/?keepalive=$(date +%s)"
