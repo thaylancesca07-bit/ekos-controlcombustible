@@ -271,7 +271,6 @@ if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.session_state['exito_guardado'] = False 
 
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Analisis Anual por Máquina"])
-
 with tab1: # REGISTRO
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -333,15 +332,40 @@ with tab1: # REGISTRO
                     lts_val = lts if lts is not None else 0.0
                     lect_val = lect if lect is not None else 0.0
                     mc = 0.0
+                    
+                    # --- CÁLCULO DE CONSUMO CORREGIDO ---
                     try: 
-                        if "Máquina" in operacion and lect_val > 0:
-                            df_h = pd.read_csv(SHEET_URL); df_h.columns = df_h.columns.str.strip().str.lower()
-                            if 'lectura_actual' in df_h.columns:
+                        if "Máquina" in operacion and lect_val > 0 and lts_val > 0:
+                            # 1. Leemos la base de datos actual para buscar la lectura anterior
+                            df_h = pd.read_csv(SHEET_URL)
+                            df_h.columns = df_h.columns.str.strip().str.lower()
+                            
+                            if 'lectura_actual' in df_h.columns and 'codigo_maquina' in df_h.columns:
+                                # Limpieza de datos
                                 df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
-                                ult = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
-                                if ult > 0 and lect_val > ult and lts_val > 0: mc = (lect_val - ult) / lts_val
-                    except: pass
+                                
+                                # 2. Buscamos el odómetro más alto registrado para ESTA máquina
+                                # Usamos MAX porque el odómetro nunca vuelve atrás
+                                lect_anterior = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
+                                
+                                # 3. Validamos y calculamos
+                                if lect_anterior > 0 and lect_val > lect_anterior:
+                                    recorrido = lect_val - lect_anterior
+                                    
+                                    # FÓRMULA SEGÚN UNIDAD
+                                    if unidad == 'KM':
+                                        # Km por Litro (Eficiencia)
+                                        mc = recorrido / lts_val
+                                    else:
+                                        # Litros por Hora (Consumo Industrial)
+                                        mc = lts_val / recorrido
+                                        
+                    except Exception as e: 
+                        print(f"Error calculo consumo: {e}")
+                        pass
+                    # ------------------------------------
+
                     img_str, img_name, img_mime = "", "", ""
                     if foto is not None:
                         try:
@@ -635,6 +659,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
