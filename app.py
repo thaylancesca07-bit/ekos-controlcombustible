@@ -35,7 +35,7 @@ ENCARGADOS_DATA = {
     "Juan Britez": {"pwd": "jbritez45", "barril": "Barril Juan"},
     "Diego Bordon": {"pwd": "Bng2121", "barril": "Barril Diego"},
     "Jonatan Vargas": {"pwd": "jv2026", "barril": "Barril Jonatan"},
-    "Cesar Cabañas": {"pwd": "cab14, "barril": "Barril Cesar"},
+    "Cesar Cabañas": {"pwd": "cab14", "barril": "Barril Cesar"},
     "Natalia Santana": {"pwd": "Santana2057", "barril": "Acceso Total"},
     "Auditoria": {"pwd": "1645", "barril": "Acceso Total"}
 }
@@ -659,6 +659,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
