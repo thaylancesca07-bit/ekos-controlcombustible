@@ -441,54 +441,76 @@ with tab2: # AUDITORÍA
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
-                            res = []
-                            codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
-                            for cod in codigos_ordenados:
-                                dm = df_maq[df_maq['codigo_maquina'] == cod]
-                                l_total = dm['litros'].sum()
-                                lect_max = dm['lectura_actual'].max()
-                                lect_min = dm['lectura_actual'].min()
-                                rec_real = lect_max - lect_min
-                                
-                                if len(dm) > 1:
-                                    dm_sorted = dm.sort_values('lectura_actual')
-                                    l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
-                                else: l_ajustados = l_total
+                        res = []
+                        codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
+                        for cod in codigos_ordenados:
+                            dm = df_maq[df_maq['codigo_maquina'] == cod]
+                            l_total = dm['litros'].sum()
+                            lect_max = dm['lectura_actual'].max()
+                            lect_min = dm['lectura_actual'].min()
+                            rec_real = lect_max - lect_min
+                            
+                            if len(dm) > 1:
+                                dm_sorted = dm.sort_values('lectura_actual')
+                                l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
+                            else: l_ajustados = l_total
 
-                                val_kml, val_lkm, val_lh = 0.0, 0.0, 0.0
-                                if cod in FLOTA:
-                                    if FLOTA[cod]['unidad'] == 'KM':
-                                        if l_ajustados > 0: val_kml = rec_real / l_ajustados
-                                        if rec_real > 0: val_lkm = l_ajustados / rec_real
-                                    else:
-                                        if rec_real > 0: val_lh = l_ajustados / rec_real 
-                                else:
+                            val_kml, val_lkm, val_lh = 0.0, 0.0, 0.0
+                            
+                            # --- MODIFICACIÓN: Capturar el Ideal ---
+                            val_ideal = 0.0
+                            if cod in FLOTA:
+                                val_ideal = FLOTA[cod]['ideal'] # Capturamos el ideal para mostrarlo
+                                if FLOTA[cod]['unidad'] == 'KM':
                                     if l_ajustados > 0: val_kml = rec_real / l_ajustados
-                                    if rec_real > 0: val_lh = l_ajustados / rec_real
-                                    
-                                estado = "N/A"
-                                if cod in FLOTA and l_total > 0 and (val_kml > 0 or val_lh > 0):
-                                    ideal = FLOTA[cod]['ideal']
-                                    if FLOTA[cod]['unidad'] == 'KM':
-                                        if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                        elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
-                                        else: estado = "✅ Ideal"
-                                    else: 
-                                        if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
-                                        elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
-                                        else: estado = "✅ Ideal"
+                                    if rec_real > 0: val_lkm = l_ajustados / rec_real
+                                else:
+                                    if rec_real > 0: val_lh = l_ajustados / rec_real 
+                            else:
+                                if l_ajustados > 0: val_kml = rec_real / l_ajustados
+                                if rec_real > 0: val_lh = l_ajustados / rec_real
+                                
+                            estado = "N/A"
+                            if cod in FLOTA and l_total > 0 and (val_kml > 0 or val_lh > 0):
+                                ideal = FLOTA[cod]['ideal']
+                                if FLOTA[cod]['unidad'] == 'KM':
+                                    if val_kml < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                    elif val_kml > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                    else: estado = "✅ Ideal"
+                                else: 
+                                    if val_lh > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                                    elif val_lh < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                                    else: estado = "✅ Ideal"
 
-                                res.append({"Código": cod, "Recorrido": round(rec_real, 1), "Litros": round(l_total, 1),
-                                    "Km/L": round(val_kml, 2), "L/Km": round(val_lkm, 2), "L/H": round(val_lh, 2), "Estado": estado})
-                            
-                            df_res = pd.DataFrame(res)
-                            st.dataframe(df_res.style.format({"Recorrido": "{:.1f}", "Litros": "{:.1f}", "Km/L": "{:.2f}", "L/Km": "{:.2f}", "L/H": "{:.2f}"}), use_container_width=True)
-                            
-                            st.markdown("### 📥 Descargas")
-                            c1, c2, c3 = st.columns(3)
-                            c1.download_button("Excel", generar_excel(dff[cols_exist]), "Historial.xlsx")
-                            c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
-                            c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
+                            # --- MODIFICACIÓN: Agregamos "Ideal" al diccionario ---
+                            res.append({
+                                "Código": cod, 
+                                "Recorrido": round(rec_real, 1), 
+                                "Litros": round(l_total, 1),
+                                "Km/L": round(val_kml, 2), 
+                                "L/Km": round(val_lkm, 2), 
+                                "L/H": round(val_lh, 2), 
+                                "Ideal": val_ideal,  # <--- NUEVA COLUMNA
+                                "Estado": estado
+                            })
+                        
+                        df_res = pd.DataFrame(res)
+                        
+                        # --- MODIFICACIÓN: Agregamos formato para la columna "Ideal" ---
+                        st.dataframe(df_res.style.format({
+                            "Recorrido": "{:.1f}", 
+                            "Litros": "{:.1f}", 
+                            "Km/L": "{:.2f}", 
+                            "L/Km": "{:.2f}", 
+                            "L/H": "{:.2f}",
+                            "Ideal": "{:.1f}" # <--- FORMATO NUEVA COLUMNA
+                        }), use_container_width=True)
+                        
+                        st.markdown("### 📥 Descargas")
+                        c1, c2, c3 = st.columns(3)
+                        c1.download_button("Excel", generar_excel(dff[cols_exist]), "Historial.xlsx")
+                        c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
+                        c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                     
                     # --- AQUÍ ESTÁ EL FILTRO DE SEGURIDAD PARA INFORMES ---
                     st.markdown("---")
@@ -659,6 +681,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
