@@ -441,7 +441,7 @@ with tab2: # AUDITORÍA
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
-                        res = []
+                            res = []
                         codigos_ordenados = sorted(df_maq['codigo_maquina'].unique())
                         for cod in codigos_ordenados:
                             dm = df_maq[df_maq['codigo_maquina'] == cod]
@@ -681,6 +681,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
