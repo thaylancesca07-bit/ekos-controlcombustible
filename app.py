@@ -248,6 +248,7 @@ if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Analisis Anual por Máquina"])
 
 # --- TAB 1: REGISTRO ---
+# --- TAB 1: REGISTRO ---
 with tab1: 
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -284,14 +285,18 @@ with tab1:
 
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
-        # --- SELECCIÓN DE TARJETA ---
-        mis_tarjetas = TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
-        sel_tarjeta = st.selectbox("Tarjeta Utilizada:", mis_tarjetas)
+        # --- SELECCIÓN DE TARJETA (MODIFICADO: OPCIONAL) ---
+        # Agregamos "Sin Tarjeta" al inicio
+        mis_tarjetas = ["⛔ Sin Tarjeta / No Aplica"] + TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
+        sel_tarjeta = st.selectbox("Tarjeta Utilizada (Opcional):", mis_tarjetas)
         
-        tarjeta_final = ""
+        tarjeta_final = "N/A" # Valor por defecto si no se elige nada
+        
         if sel_tarjeta == "💳 Otra (Manual)":
-            tarjeta_final = st.text_input("Ingrese N° o Nombre de Tarjeta Manual:")
-        else:
+            t_manual = st.text_input("Ingrese N° o Nombre de Tarjeta Manual:")
+            # Si escribe algo manual lo usamos, si no, queda como N/A
+            if t_manual: tarjeta_final = t_manual
+        elif sel_tarjeta != "⛔ Sin Tarjeta / No Aplica":
             tarjeta_final = sel_tarjeta
 
         with st.form("f_reg", clear_on_submit=False):
@@ -310,9 +315,10 @@ with tab1:
                 if "Máquina" in operacion and sel_m == "➕ OTRO (Manual)":
                     if not cod_f or not nom_f: error_manual = True
                 
-                if not chofer or not act or lts is None or error_manual: st.warning("⚠️ Faltan datos obligatorios.")
+                # --- VALIDACIONES (ELIMINADA LA VALIDACIÓN DE TARJETA) ---
+                if not chofer or not act or lts is None or error_manual: st.warning("⚠️ Faltan datos obligatorios (Chofer, Actividad, Litros).")
                 elif "Máquina" in operacion and lect is None: st.warning("⚠️ Falta la Lectura.")
-                elif not tarjeta_final: st.warning("⚠️ Debe seleccionar o escribir una TARJETA.")
+                # Se eliminó la línea: elif not tarjeta_final: st.warning(...) 
                 else:
                     lts_val = lts if lts is not None else 0.0
                     lect_val = lect if lect is not None else 0.0
@@ -345,7 +351,6 @@ with tab1:
                         "tarjeta": tarjeta_final,
                         "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL", "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime}
                     confirmar_envio(pl)
-
 # --- TAB 2: AUDITORÍA ---
 with tab2:
     st.subheader("🔐 Acceso Restringido")
@@ -606,3 +611,4 @@ with tab4:
             c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
             c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
         else: st.info(f"Sin datos registrados para el año {y}.")
+
