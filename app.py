@@ -39,6 +39,29 @@ ENCARGADOS_DATA = {
     "Natalia Santana": {"pwd": "Santana2057", "barril": "Acceso Total"},
     "Auditoria": {"pwd": "1645", "barril": "Acceso Total"}
 }
+# --- LISTADO DE TARJETAS POR ENCARGADO ---
+TARJETAS_DATA = {
+    "Diego Bordon": [
+        "MULTI Diego - 70026504990100126"
+    ],
+    "Cesar Cabañas": [
+        "MULTI CESAR - 70026504990100140",
+        "M-02 - 70026504990100179"
+    ],
+    "Juan Britez": [
+        "MULTI JUAN - 70026504990100112",
+        "M-13 - 70026504990100024"
+    ],
+    "Jonatan Vargas": [
+        "M-03 - 70026504990100189",
+        "S-03 - 70026504990100056",
+        "S-05 - 70026504990100063",
+        "S-06 - 70026504990100078",
+        "S-07 - 70026504990100164",
+        "S-08 - 70026504990100088",
+        "MULTI JONATAN - 70026504990100134"
+    ]
+}
 BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
 
 # --- FLOTA ACTUALIZADA ---
@@ -283,15 +306,12 @@ with tab1: # REGISTRO
     if pwd_input == ENCARGADOS_DATA[encargado_sel]["pwd"]:
         SURTIDORES = ["Surtidor Petrobras", "Surtidor Shell", "Surtidor Crisma", "Surtidor Puma"]
         if ENCARGADOS_DATA[encargado_sel]["barril"] == "Acceso Total": 
-            op_barril = BARRILES_LISTA
-            op_origen = BARRILES_LISTA + SURTIDORES
+            op_barril = BARRILES_LISTA; op_origen = BARRILES_LISTA + SURTIDORES
         else: 
             mi_barril = ENCARGADOS_DATA[encargado_sel]["barril"]
-            op_barril = [mi_barril] 
-            op_origen = [mi_barril] + SURTIDORES
+            op_barril = [mi_barril]; op_origen = [mi_barril] + SURTIDORES
 
         operacion = st.radio("Operación:", ["Cargar una Máquina 🚜", "Llenar un Barril 📦"])
-        
         c_f1, c_f2 = st.columns(2)
         with c_f1:
             if "Máquina" in operacion:
@@ -313,6 +333,17 @@ with tab1: # REGISTRO
 
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
+        # --- SELECCIÓN DE TARJETA ---
+        mis_tarjetas = TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
+        sel_tarjeta = st.selectbox("Tarjeta Utilizada:", mis_tarjetas)
+        
+        # Si selecciona manual, mostramos el campo de texto
+        tarjeta_final = ""
+        if sel_tarjeta == "💳 Otra (Manual)":
+            tarjeta_final = st.text_input("Ingrese N° o Nombre de Tarjeta Manual:")
+        else:
+            tarjeta_final = sel_tarjeta
+
         with st.form("f_reg", clear_on_submit=False):
             c1, c2 = st.columns(2)
             chofer = c1.text_input("Chofer")
@@ -329,45 +360,27 @@ with tab1: # REGISTRO
                 if "Máquina" in operacion and sel_m == "➕ OTRO (Manual)":
                     if not cod_f or not nom_f: error_manual = True
                 
-                if not chofer or not act or lts is None or error_manual: st.warning("⚠️ Faltan datos obligatorios.")
+                # --- VALIDACIONES (Incluyendo Tarjeta) ---
+                if not chofer or not act or lts is None or error_manual: st.warning("⚠️ Faltan datos obligatorios (Chofer, Actividad, Litros).")
                 elif "Máquina" in operacion and lect is None: st.warning("⚠️ Falta la Lectura.")
+                elif not tarjeta_final: st.warning("⚠️ Debe seleccionar o escribir una TARJETA.")
                 else:
                     lts_val = lts if lts is not None else 0.0
                     lect_val = lect if lect is not None else 0.0
                     mc = 0.0
-                    
-                    # --- CÁLCULO DE CONSUMO CORREGIDO ---
                     try: 
                         if "Máquina" in operacion and lect_val > 0 and lts_val > 0:
-                            # 1. Leemos la base de datos actual para buscar la lectura anterior
                             df_h = pd.read_csv(SHEET_URL)
                             df_h.columns = df_h.columns.str.strip().str.lower()
-                            
                             if 'lectura_actual' in df_h.columns and 'codigo_maquina' in df_h.columns:
-                                # Limpieza de datos
                                 df_h['lectura_actual'] = df_h['lectura_actual'].astype(str).str.replace(',', '.')
                                 df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'], errors='coerce').fillna(0)
-                                
-                                # 2. Buscamos el odómetro más alto registrado para ESTA máquina
-                                # Usamos MAX porque el odómetro nunca vuelve atrás
                                 lect_anterior = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
-                                
-                                # 3. Validamos y calculamos
                                 if lect_anterior > 0 and lect_val > lect_anterior:
                                     recorrido = lect_val - lect_anterior
-                                    
-                                    # FÓRMULA SEGÚN UNIDAD
-                                    if unidad == 'KM':
-                                        # Km por Litro (Eficiencia)
-                                        mc = recorrido / lts_val
-                                    else:
-                                        # Litros por Hora (Consumo Industrial)
-                                        mc = lts_val / recorrido
-                                        
-                    except Exception as e: 
-                        print(f"Error calculo consumo: {e}")
-                        pass
-                    # ------------------------------------
+                                    if unidad == 'KM': mc = recorrido / lts_val
+                                    else: mc = lts_val / recorrido
+                    except Exception as e: print(f"Error: {e}")
 
                     img_str, img_name, img_mime = "", "", ""
                     if foto is not None:
@@ -377,12 +390,14 @@ with tab1: # REGISTRO
                             img_name = f"EVIDENCIA_{fecha}_{encargado_sel}.jpg"
                             img_mime = foto.type
                         except: pass
+                    
+                    # Agregamos 'tarjeta' al payload
                     pl = {"fecha": str(fecha), "tipo_operacion": operacion, "codigo_maquina": cod_f, "nombre_maquina": nom_f, 
                         "origen": origen, "chofer": chofer, "responsable_cargo": encargado_sel, "actividad": act, 
                         "lectura_actual": lect_val, "litros": lts_val, "tipo_combustible": tipo_comb, "media": mc,
+                        "tarjeta": tarjeta_final, # NUEVO CAMPO
                         "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL", "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime}
                     confirmar_envio(pl)
-
 with tab2: # AUDITORÍA
     st.subheader("🔐 Acceso Restringido")
     
@@ -436,10 +451,10 @@ with tab2: # AUDITORÍA
                 
                 if not dff.empty:
                     st.subheader("📋 Detalle")
-                    cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','responsable_cargo']
+                    # AGREGADO 'tarjeta' A LA LISTA DE COLUMNAS A VER
+                    cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','tarjeta','responsable_cargo']
                     cols_exist = [c for c in cols_ver if c in dff.columns]
-                    st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
-                    
+                    st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)  
                     st.subheader("📊 Rendimiento General (Resumen)")
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
@@ -684,6 +699,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
