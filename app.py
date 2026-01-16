@@ -287,8 +287,8 @@ with tab1:
         
         # --- SELECCIÓN DE TARJETA (MODIFICADO: OPCIONAL) ---
         # Agregamos "Sin Tarjeta" al inicio
-        mis_tarjetas = ["⛔ Sin Tarjeta / No Aplica"] + TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
-        sel_tarjeta = st.selectbox("Tarjeta Utilizada (Opcional):", mis_tarjetas)
+        mis_tarjetas = ["⛔ Sin Tarjeta"] + TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
+        sel_tarjeta = st.selectbox("Tarjeta Utilizada:", mis_tarjetas)
         
         tarjeta_final = "N/A" # Valor por defecto si no se elige nada
         
@@ -296,7 +296,7 @@ with tab1:
             t_manual = st.text_input("Ingrese N° o Nombre de Tarjeta Manual:")
             # Si escribe algo manual lo usamos, si no, queda como N/A
             if t_manual: tarjeta_final = t_manual
-        elif sel_tarjeta != "⛔ Sin Tarjeta / No Aplica":
+        elif sel_tarjeta != "⛔ Sin Tarjeta":
             tarjeta_final = sel_tarjeta
 
         with st.form("f_reg", clear_on_submit=False):
@@ -611,4 +611,5 @@ with tab4:
             c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
             c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
         else: st.info(f"Sin datos registrados para el año {y}.")
+
 
