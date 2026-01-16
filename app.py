@@ -67,6 +67,7 @@ FLOTA = {
     "TF01": {"nombre": "Ford", "unidad": "Horas", "ideal": 0.0},
     "TM-01": {"nombre": "Pala Michigan", "unidad": "Horas", "ideal": 14.0},
     "V-02": {"nombre": "Valmet 785", "unidad": "Horas", "ideal": 7.0},
+    "V-06": {"nombre": "Valmet", "unidad": "Horas", "ideal": 7.0},
     "V-07": {"nombre": "Valmet 1580", "unidad": "Horas", "ideal": 11.0},
     "V-11": {"nombre": "Valmet 8080", "unidad": "Horas", "ideal": 9.5},
     "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0}
@@ -681,6 +682,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
