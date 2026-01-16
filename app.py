@@ -43,17 +43,18 @@ BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar
 
 # --- FLOTA ACTUALIZADA ---
 FLOTA = {
-    "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
+    "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0},
+    "I-01": {"nombre": "Izusu", "unidad": "KM", "ideal": 10.0},
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
     "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
     "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
     "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
     "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0},
-    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
-    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 8.5},
+    "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 9.0},
+    "M-03": {"nombre": "GM S-10 (M-03)", "unidad": "KM", "ideal": 9.0},
     "M-11": {"nombre": "N. Frontier", "unidad": "KM", "ideal": 9.0},
     "M-17": {"nombre": "GM S-10", "unidad": "KM", "ideal": 10.0},
-    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas", "ideal": 5.0},
+    "M13": {"nombre": "Nisan Frontier (M13)", "unidad": "Horas", "ideal": 9.0},
     "MC-01": {"nombre": "Bus", "unidad": "KM", "ideal": 8.0},
     "MC-06": {"nombre": "MB Canter", "unidad": "KM", "ideal": 6.0},
     "MF-02": {"nombre": "Massey", "unidad": "Horas", "ideal": 9.0},
@@ -683,6 +684,7 @@ with tab4: # MÁQUINA
                 c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
             else: st.info("Sin datos.")
         except: st.error("Error datos.")
+
 
 
 
