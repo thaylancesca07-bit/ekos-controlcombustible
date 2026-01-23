@@ -579,44 +579,131 @@ if "🔍 Verificación Conciliación" in pestanas:
                     st.success("Sincronización finalizada.")
 
 # ==============================================================================
-# TAB 4: ANÁLISIS ANUAL (SOLO ADMINS)
+# TAB 4: ANÁLISIS (ADMIN) - CÓDIGO RESTAURADO Y ORGANIZADO
 # ==============================================================================
 if "🚜 Análisis Anual" in pestanas:
     with mis_tabs[pestanas.index("🚜 Análisis Anual")]:
-        st.subheader("Análisis de Tendencias Anuales")
+        st.subheader("Análisis de Tendencias")
         
-        dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
-        if 'litros' in dfm.columns: dfm['litros'] = pd.to_numeric(dfm['litros'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-        dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True)
-        
-        c1, c2 = st.columns(2)
-        codigos = sorted(dfm['codigo_maquina'].unique().astype(str))
-        maq_sel = c1.selectbox("Seleccionar Máquina", codigos)
-        anio_sel = c2.selectbox("Año", [2024, 2025, 2026], index=1)
-        
-        dy = dfm[(dfm['codigo_maquina'] == maq_sel) & (dfm['fecha'].dt.year == anio_sel)]
-        
-        if not dy.empty:
-            dy['mes'] = dy['fecha'].dt.month
-            res = dy.groupby('mes')['litros'].sum().reset_index()
+        try:
+            # 1. Carga y Limpieza de Datos
+            dfm = pd.read_csv(SHEET_URL)
+            dfm.columns = dfm.columns.str.strip().str.lower()
+            for c in ['litros','media','lectura_actual']: 
+                if c in dfm.columns: 
+                    dfm[c] = dfm[c].astype(str).str.replace(',', '.')
+                    dfm[c] = pd.to_numeric(dfm[c], errors='coerce').fillna(0)
+            dfm['fecha'] = pd.to_datetime(dfm['fecha'], errors='coerce', dayfirst=True)
             
-            # Gráfico Línea
-            fig_l, ax_l = plt.subplots(figsize=(8,3))
-            ax_l.plot(res['mes'], res['litros'], marker='o')
-            ax_l.set_title(f"Consumo {maq_sel} - {anio_sel}")
-            st.pyplot(fig_l)
+            # 2. Filtros
+            c_filtro1, c_filtro2 = st.columns(2)
+            codigos_db = dfm['codigo_maquina'].unique().tolist()
+            opciones_maquina = [f"{k} - {v['nombre']}" for k, v in FLOTA.items()]
             
-            # Botón Descarga Gráfico 1
-            buf_l = io.BytesIO(); fig_l.savefig(buf_l, format="png"); buf_l.seek(0)
-            st.download_button("⬇️ Descargar Gráfico Línea", buf_l, "linea.png", "image/png")
+            # Agregar máquinas manuales que estén en la BD pero no en el diccionario FLOTA
+            for c in codigos_db:
+                if c not in FLOTA and isinstance(c, str): opciones_maquina.append(f"{c} - (Manual)")
+            opciones_maquina.sort()
+            
+            maq = c_filtro1.selectbox("Máquina", opciones_maquina)
+            y = c_filtro2.selectbox("Año", [2024, 2025, 2026], index=1)
+            
+            cod = maq.split(" - ")[0]
+            dy = dfm[(dfm['codigo_maquina'] == cod) & (dfm['fecha'].dt.year == y)]
+            
+            if not dy.empty:
+                # 3. Procesamiento de Datos Mensuales
+                res = []; mn = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
+                for i in range(1, 13):
+                    dm = dy[dy['fecha'].dt.month == i]
+                    l_total = dm['litros'].sum()
+                    
+                    if l_total > 0:
+                        rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
+                        if len(dm) > 1:
+                            dm_sorted = dm.sort_values('lectura_actual')
+                            l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
+                        else: l_ajustados = l_total
 
-            # Gráfico Barras
-            fig_b, ax_b = plt.subplots(figsize=(8,3))
-            ax_b.bar(res['mes'], res['litros'], color='orange')
-            st.pyplot(fig_b)
+                        pr = 0
+                        if cod in FLOTA:
+                            if FLOTA[cod]['unidad'] == 'KM': pr = rec/l_ajustados if l_ajustados > 0 else 0
+                            else: pr = l_ajustados/rec if rec > 0 else 0
+                        else:
+                            if rec > l_ajustados: pr = rec/l_ajustados if l_ajustados > 0 else 0
+                            else: pr = l_ajustados/rec if rec > 0 else 0
+                    else: pr = 0; l_total = 0
+                    
+                    # Estado (Semáforo)
+                    estado = "N/A"
+                    if cod in FLOTA and l_total > 0 and pr > 0:
+                        ideal = FLOTA[cod]['ideal']
+                        if FLOTA[cod]['unidad'] == 'KM':
+                            if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                            elif pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                            else: estado = "✅ Ideal"
+                        else: 
+                            if pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
+                            elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
+                            else: estado = "✅ Ideal"
+                    
+                    enc_list = dm['responsable_cargo'].dropna().unique().tolist()
+                    enc_str = ", ".join(enc_list) if enc_list else "-"
+                    res.append({"Mes": mn[i-1], "Encargados": enc_str, "Litros": round(l_total, 1), "Promedio": round(pr, 2), "Estado": estado})
+                
+                dr = pd.DataFrame(res)
+                
+                # 4. Visualización: Gráficos lado a lado
+                st.markdown(f"#### 📊 Resultados: {maq}")
+                c1, c2 = st.columns(2)
 
-            # Botón Descarga Gráfico 2
-            buf_b = io.BytesIO(); fig_b.savefig(buf_b, format="png"); buf_b.seek(0)
-            st.download_button("⬇️ Descargar Gráfico Barras", buf_b, "barras.png", "image/png")
-            
-        else: st.info("No hay datos para este año/máquina.")
+                # --- Columna 1: Gráfico de Línea (Rendimiento) ---
+                with c1:
+                    fig_line, ax_line = plt.subplots(figsize=(6, 4))
+                    fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
+                    ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
+                    if cod in FLOTA: 
+                        ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label=f"Ideal ({FLOTA[cod]['ideal']})")
+                    ax_line.set_title("Rendimiento (Km/L o L/H)")
+                    ax_line.legend()
+                    ax_line.grid(True, alpha=0.3)
+                    st.pyplot(fig_line)
+                    
+                    # Botón descarga Gráfico 1
+                    buf_line = io.BytesIO()
+                    fig_line.savefig(buf_line, format="png")
+                    buf_line.seek(0)
+                    st.download_button("⬇️ Descargar Gráfico Línea", buf_line, f"Rendimiento_{cod}.png", "image/png")
+                    plt.close(fig_line)
+
+                # --- Columna 2: Gráfico de Barras (Consumo) ---
+                with c2:
+                    fig_bar, ax_bar = plt.subplots(figsize=(6, 4))
+                    fig_bar.patch.set_facecolor('white'); ax_bar.set_facecolor('white')
+                    ax_bar.bar(dr['Mes'], dr['Litros'], color='orange')
+                    ax_bar.set_title("Consumo Total (Litros)")
+                    ax_bar.grid(axis='y', alpha=0.3)
+                    st.pyplot(fig_bar)
+                    
+                    # Botón descarga Gráfico 2
+                    buf_bar = io.BytesIO()
+                    fig_bar.savefig(buf_bar, format="png")
+                    buf_bar.seek(0)
+                    st.download_button("⬇️ Descargar Gráfico Barras", buf_bar, f"Consumo_{cod}.png", "image/png")
+                    plt.close(fig_bar)
+                
+                # 5. Tabla de Datos (Abajo)
+                st.markdown("---")
+                st.markdown("#### 📋 Detalle Mensual")
+                st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.2f}"}), use_container_width=True)
+                
+                # 6. Botones de Reporte Final
+                b_pdf, b_word = st.columns(2)
+                b_pdf.download_button("📄 Descargar PDF Completo", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
+                b_word.download_button("📝 Descargar Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
+                
+            else: 
+                st.info(f"No se encontraron registros para {cod} en el año {y}.")
+                
+        except Exception as e:
+            st.error(f"Error en el análisis: {e}")
