@@ -63,8 +63,8 @@ TARJETAS_DATA = {
 FLOTA = {
     "HV-01": {"nombre": "Caterpilar 320D", "unidad": "Horas", "ideal": 18.0}, 
     "JD-01": {"nombre": "John Deere", "unidad": "Horas", "ideal": 15.0},
-    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 16.0},
-    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 10.0},
+    "JD-02": {"nombre": "John Deere 6170", "unidad": "Horas", "ideal": 11.0},
+    "JD-03": {"nombre": "John Deere 6110", "unidad": "Horas", "ideal": 4.0},
     "JD-04": {"nombre": "John Deere 5090", "unidad": "Horas", "ideal": 8.0},
     "M-01": {"nombre": "Nissan Frontier (Natalia)", "unidad": "KM", "ideal": 9.0},
     "M-02": {"nombre": "Chevrolet - S10", "unidad": "KM", "ideal": 8.0},
@@ -700,6 +700,7 @@ if "🚜 Análisis Anual" in pestanas:
                 
         except Exception as e:
             st.error(f"Error en el análisis: {e}")
+
 
 
 
