@@ -20,7 +20,7 @@ st.markdown("""
         .stButton>button {width: 100%; border-radius: 5px; height: 3em;}
         div[data-testid="stSidebarUserContent"] {padding-top: 2rem;}
         h1 {color: #2E4053;}
-        .footer-text {font-size: 12px; color: gray; text-align: center; margin-top: 20px;}
+        .footer-text {font-size: 12px; color: gray; text-align: center; margin-top: 50px;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +90,7 @@ FLOTA = {
     "V-12": {"nombre": "Valtra 180", "unidad": "Horas", "ideal": 12.0}
 }
 
-# --- FUNCIONES ---
+# --- FUNCIONES DE SOPORTE ---
 def clean_text(text): return str(text).encode('latin-1', 'replace').decode('latin-1')
 
 def generar_excel(df, sheet_name='Datos'):
@@ -120,24 +120,81 @@ def generar_word(df, titulo):
             for i, item in enumerate(row): row_cells[i].text = str(item)
     b = io.BytesIO(); doc.save(b); return b.getvalue()
 
+# --- GENERADOR DE INFORME EXCELENCIA (COMPLETO RESTAURADO) ---
 def generar_informe_corporativo(encargado, df_filtrado, fecha_ini, fecha_fin):
     doc = Document()
     style = doc.styles['Normal']; font = style.font; font.name = 'Calibri'; font.size = Pt(11)
+    
     heading = doc.add_heading(f'INFORME DE CONTROL DE COMBUSTIBLE', 0)
     heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph(f"Responsable: {encargado} | Fecha: {date.today().strftime('%d/%m/%Y')}")
-    doc.add_paragraph("-" * 70)
-    doc.add_heading('1. Resumen de Movimientos', level=1)
     
-    if 'codigo_maquina' in df_filtrado.columns and 'litros' in df_filtrado.columns:
-        resumen = df_filtrado.groupby('codigo_maquina')['litros'].sum().reset_index()
-        t = doc.add_table(rows=1, cols=2); t.style = 'Table Grid'
-        t.rows[0].cells[0].text = 'Máquina'; t.rows[0].cells[1].text = 'Litros'
-        for _, row in resumen.iterrows():
-            rc = t.add_row().cells
-            rc[0].text = str(row['codigo_maquina']); rc[1].text = f"{row['litros']:.1f}"
+    doc.add_paragraph(f"Responsable Auditado: {encargado}")
+    doc.add_paragraph(f"Período de Análisis: {fecha_ini.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}")
+    doc.add_paragraph(f"Fecha de Emisión: {date.today().strftime('%d/%m/%Y')}")
+    doc.add_paragraph("-" * 70)
 
-    doc.add_paragraph("\nInforme generado automáticamente por Ekos Control.")
+    doc.add_heading('1. Objetivo del Reporte', level=1)
+    p = doc.add_paragraph("El presente documento tiene como finalidad certificar la correspondencia entre los registros de ingreso y salida de combustible, validando la integridad de los datos reportados por el proveedor frente a la gestión operativa interna. Asimismo, se busca identificar desviaciones en el rendimiento de la flota que puedan impactar en la eficiencia operativa de Ekos Forestal S.A.")
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+    doc.add_heading('2. Análisis de Rendimiento y Hallazgos', level=1)
+    maquinas_alerta = []
+    
+    if 'tipo_operacion' in df_filtrado.columns:
+        df_maq = df_filtrado[df_filtrado['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
+        unique_maqs = df_maq['codigo_maquina'].unique()
+        
+        for cod in unique_maqs:
+            dm = df_maq[df_maq['codigo_maquina'] == cod]
+            l_total = dm['litros'].sum()
+            rec = dm['lectura_actual'].max() - dm['lectura_actual'].min()
+            
+            if len(dm) > 1:
+                dm_sorted = dm.sort_values('lectura_actual')
+                l_ajustados = dm_sorted.iloc[1:]['litros'].sum()
+            else: l_ajustados = l_total
+
+            rend = 0
+            if cod in FLOTA:
+                ideal = FLOTA[cod]['ideal']
+                unidad = FLOTA[cod]['unidad']
+                
+                if unidad == 'KM':
+                    rend = rec / l_ajustados if l_ajustados > 0 else 0
+                    if rend < ideal * (1 - MARGEN_TOLERANCIA): maquinas_alerta.append((cod, rend, ideal, unidad, "bajo"))
+                else: 
+                    rend = l_ajustados / rec if rec > 0 else 0
+                    if rend > ideal * (1 + MARGEN_TOLERANCIA): maquinas_alerta.append((cod, rend, ideal, unidad, "alto"))
+
+    if maquinas_alerta:
+        doc.add_paragraph("Durante la revisión detallada de la flota asignada, se han detectado las siguientes oportunidades de mejora en el consumo de combustible:")
+        for maq, real, ideal, un, tipo in maquinas_alerta:
+            diff_pct = abs((real - ideal) / ideal) * 100
+            if un == 'KM': txt = f"• La unidad {maq} presentó un rendimiento de {real:.2f} Km/L, situándose por debajo del estándar ideal de {ideal} Km/L. Esto representa una desviación del {diff_pct:.1f}%."
+            else: txt = f"• El equipo {maq} registró un consumo horario de {real:.2f} L/H, excediendo el parámetro esperado de {ideal} L/H. Esta desviación del {diff_pct:.1f}%."
+            p = doc.add_paragraph(txt); p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    else:
+        doc.add_paragraph("Tras el análisis de los registros del período, no se observaron desviaciones significativas en el rendimiento de las máquinas.")
+
+    doc.add_heading('3. Detalle de Movimientos Consolidados', level=1)
+    table = doc.add_table(rows=1, cols=3); table.style = 'Table Grid'
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Código Máquina'; hdr_cells[1].text = 'Litros Totales'; hdr_cells[2].text = 'Recorrido Total'
+    
+    if 'tipo_operacion' in df_filtrado.columns:
+        if 'codigo_maquina' in df_maq.columns:
+            resumen = df_maq.groupby('codigo_maquina').agg({'litros': 'sum'}).reset_index()
+            for index, row in resumen.iterrows():
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(row['codigo_maquina']); row_cells[1].text = f"{row['litros']:.1f}"
+                dmm = df_maq[df_maq['codigo_maquina'] == row['codigo_maquina']]
+                recc = dmm['lectura_actual'].max() - dmm['lectura_actual'].min()
+                row_cells[2].text = f"{recc:.1f}"
+
+    doc.add_heading('4. Conclusiones y Recomendaciones', level=1)
+    doc.add_paragraph("Se recomienda mantener un monitoreo constante sobre las unidades listadas. Es vital asegurar que todos los registros de carga incluyan la diferenciación correcta entre Nafta y Diésel.")
+    doc.add_paragraph("\n")
+    footer = doc.add_paragraph("Informe generado automáticamente por el sistema Ekos Control."); footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     b = io.BytesIO(); doc.save(b); return b.getvalue()
 
 @st.dialog("📝 Confirmar Información")
@@ -199,6 +256,7 @@ def login():
                 else:
                     st.error("Credenciales incorrectas.")
         
+        # --- FRASE SOLO EN EL LOGIN ---
         st.markdown("""
             <div class='footer-text'>
                 Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <br>
@@ -216,7 +274,7 @@ if not st.session_state['logged_in']:
     st.stop()
 
 # ==============================================================================
-# INTERFAZ PRINCIPAL
+# INTERFAZ PRINCIPAL (YA SIN LA FRASE)
 # ==============================================================================
 usuario_actual = st.session_state['usuario']
 rol_actual = st.session_state['rol']
@@ -228,8 +286,7 @@ with st.sidebar:
     if st.button("🚪 Cerrar Sesión"): logout()
 
 st.title("⛽ Ekos Forestal / Control")
-st.markdown("""<p style='font-size: 14px; color: gray; margin-top: -15px;'>Plataforma de Gestión</p>""", unsafe_allow_html=True)
-st.markdown("""<p style='font-size: 12px; color: gray; margin-top: -10px;'>Desenvolvido por Excelencia Consultora en Paraguay 🇵🇾 <span style='font-style: italic;'>creado por Thaylan Cesca</span></p><hr>""", unsafe_allow_html=True)
+st.markdown("""<p style='font-size: 14px; color: gray; margin-top: -15px;'>Plataforma de Gestión</p><hr>""", unsafe_allow_html=True)
 
 if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
     st.toast('Datos Guardados Correctamente!', icon='✅')
@@ -295,6 +352,20 @@ if "📋 Registro de Carga" in pestanas:
 
             if st.form_submit_button("🔎 REVISAR DATOS"):
                 mc = 0.0
+                try:
+                    if "Máquina" in operacion:
+                        with st.spinner("Calculando consumo..."):
+                            df_h = pd.read_csv(SHEET_URL)
+                            df_h.columns = df_h.columns.str.strip().str.lower()
+                            if 'lectura_actual' in df_h.columns and 'codigo_maquina' in df_h.columns:
+                                df_h['lectura_actual'] = pd.to_numeric(df_h['lectura_actual'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                                lect_anterior = df_h[df_h['codigo_maquina'] == cod_f]['lectura_actual'].max()
+                                if lect_anterior > 0 and lect > lect_anterior:
+                                    recorrido = lect - lect_anterior
+                                    if unidad == 'KM': mc = recorrido / lts
+                                    else: mc = lts / recorrido
+                except: pass
+
                 img_str, img_name, img_mime = "", "", ""
                 if foto:
                     try:
@@ -338,8 +409,9 @@ if "🔐 Auditoría General" in pestanas:
                     st.markdown("### 📥 Descargas")
                     b1, b2, b3 = st.columns(3)
                     
+                    # --- BOTÓN EXCEL DETALLADO (CON TARJETA) ---
                     cols_excel = [c for c in ['fecha', 'codigo_maquina', 'nombre_maquina', 'litros', 'tipo_combustible', 'chofer', 'tarjeta', 'responsable_cargo'] if c in dff.columns]
-                    b1.download_button("📊 Descargar Detalle (Excel)", generar_excel(dff[cols_excel]), "Detalle_Movimientos.xlsx")
+                    b1.download_button("📊 Descargar Excel Detallado", generar_excel(dff[cols_excel]), "Detalle_Completo.xlsx")
                     b2.download_button("📄 Reporte PDF", generar_pdf_con_graficos(dff, "Reporte"), "Reporte.pdf")
                     
                     if usuario_actual == "Auditoria":
@@ -353,12 +425,47 @@ if "🔐 Auditoría General" in pestanas:
 # --- TAB 3: CONCILIACIÓN (ADMIN) ---
 if "🔍 Verificación Conciliación" in pestanas:
     with mis_tabs[pestanas.index("🔍 Verificación Conciliación")]:
-        st.write("Módulo de Conciliación Petrobras")
+        st.subheader("Verificación Cruzada Petrobras")
         up = st.file_uploader("Archivo Petrobras", ["xlsx", "csv"])
         if up:
-            st.info("Procesando...")
-            # Lógica simplificada de conciliación para demostración
-            st.success("Archivo procesado correctamente (Lógica interna activa)")
+            try:
+                st.info("Procesando datos...")
+                dfe = pd.read_csv(SHEET_URL); dfe.columns = dfe.columns.str.strip().str.lower()
+                if 'litros' in dfe.columns: dfe['litros'] = pd.to_numeric(dfe['litros'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                dfe['fecha'] = pd.to_datetime(dfe['fecha'], errors='coerce', dayfirst=True)
+                dfe['KEY'] = (dfe['fecha'].dt.strftime('%Y-%m-%d') + "_" + dfe['responsable_cargo'].astype(str).str.strip().str.upper() + "_" + dfe['litros'].astype(int).astype(str))
+
+                dfp = pd.DataFrame()
+                if up.name.endswith('.csv'): 
+                    try: 
+                        up.seek(0); dfp = pd.read_csv(up, sep=';', header=0, engine='python')
+                        if len(dfp.columns) < 2: up.seek(0); dfp = pd.read_csv(up, sep=',', header=0)
+                    except: st.error("Error CSV")
+                else: dfp = pd.read_excel(up)
+
+                if not dfp.empty and len(dfp.columns) > 15:
+                    dfp = dfp.iloc[:, [5, 12, 14, 15]]; dfp.columns = ["Fecha", "Resp", "Comb", "Litros"]
+                    dfp['Fecha'] = pd.to_datetime(dfp['Fecha'], errors='coerce', dayfirst=True)
+                    dfp['Litros'] = pd.to_numeric(dfp['Litros'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    dfp['KEY'] = (dfp['Fecha'].dt.strftime('%Y-%m-%d') + "_" + dfp['Resp'].astype(str).str.strip().str.upper() + "_" + dfp['Litros'].astype(int).astype(str))
+
+                    m = pd.merge(dfp, dfe, on='KEY', how='outer', indicator=True)
+                    def clasificar(r):
+                        if r['_merge'] == 'both': return "✅ Correcto"
+                        elif r['_merge'] == 'left_only': return "⚠️ Faltante en Sistema"
+                        else: return "❓ Sobrante en Sistema"
+                    m['Estado'] = m.apply(clasificar, axis=1)
+                    
+                    m['Fecha_F'] = m['Fecha'].combine_first(m['fecha'])
+                    m['Litros_F'] = m['Litros'].combine_first(m['litros'])
+                    fv = m[['Fecha_F', 'Litros_F', 'Estado']].sort_values(by='Fecha_F', ascending=False)
+                    
+                    def color(val):
+                        if "Correcto" in val: return 'background-color: #d4edda; color: black'
+                        elif "Faltante" in val: return 'background-color: #f8d7da; color: black'
+                        else: return 'background-color: #fff3cd; color: black'
+                    st.dataframe(fv.style.applymap(color, subset=['Estado']), use_container_width=True)
+            except Exception as e: st.error(f"Error: {e}")
 
 # --- TAB 4: ANÁLISIS (ADMIN) ---
 if "🚜 Análisis Anual" in pestanas:
@@ -385,6 +492,7 @@ if "🚜 Análisis Anual" in pestanas:
                 ax.set_title(f"Consumo {maq_sel} - {anio_sel}")
                 st.pyplot(fig)
                 
+                # --- TABLA AGREGADA DEBAJO DEL GRAFICO ---
                 st.markdown("#### Datos Mensuales")
                 st.dataframe(res.style.format({"litros": "{:.1f}"}), use_container_width=True)
                 
