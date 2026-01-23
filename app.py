@@ -239,7 +239,7 @@ def login():
     st.markdown("<br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown("<h2 style='text-align: center; color: #2E4053;'>🔐 Ekos Forestal</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #2E4053;'>🔐 Ekos Forestal S.A.</h2>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; color: gray;'>Sistema Integrado de Combustible</div><br>", unsafe_allow_html=True)
         
         with st.form("login_form"):
@@ -700,6 +700,7 @@ if "🚜 Análisis Anual" in pestanas:
                 
         except Exception as e:
             st.error(f"Error en el análisis: {e}")
+
 
 
 
