@@ -248,7 +248,6 @@ if 'exito_guardado' in st.session_state and st.session_state['exito_guardado']:
 tab1, tab2, tab3, tab4 = st.tabs(["👋 Registro Personal", "🔐 Auditoría", "🔍 Verificación", "🚜 Analisis Anual por Máquina"])
 
 # --- TAB 1: REGISTRO ---
-# --- TAB 1: REGISTRO ---
 with tab1: 
     st.subheader("🔑 Acceso de Encargado")
     c_auth1, c_auth2 = st.columns(2)
@@ -285,16 +284,13 @@ with tab1:
 
         with c_f2: tipo_comb = st.selectbox("Combustible:", TIPOS_COMBUSTIBLE)
         
-        # --- SELECCIÓN DE TARJETA (MODIFICADO: OPCIONAL) ---
-        # Agregamos "Sin Tarjeta" al inicio
+        # --- SELECCIÓN DE TARJETA ---
         mis_tarjetas = ["⛔ Sin Tarjeta"] + TARJETAS_DATA.get(encargado_sel, []) + ["💳 Otra (Manual)"]
         sel_tarjeta = st.selectbox("Tarjeta Utilizada:", mis_tarjetas)
         
-        tarjeta_final = "N/A" # Valor por defecto si no se elige nada
-        
+        tarjeta_final = "N/A"
         if sel_tarjeta == "💳 Otra (Manual)":
             t_manual = st.text_input("Ingrese N° o Nombre de Tarjeta Manual:")
-            # Si escribe algo manual lo usamos, si no, queda como N/A
             if t_manual: tarjeta_final = t_manual
         elif sel_tarjeta != "⛔ Sin Tarjeta":
             tarjeta_final = sel_tarjeta
@@ -315,10 +311,8 @@ with tab1:
                 if "Máquina" in operacion and sel_m == "➕ OTRO (Manual)":
                     if not cod_f or not nom_f: error_manual = True
                 
-                # --- VALIDACIONES (ELIMINADA LA VALIDACIÓN DE TARJETA) ---
                 if not chofer or not act or lts is None or error_manual: st.warning("⚠️ Faltan datos obligatorios (Chofer, Actividad, Litros).")
                 elif "Máquina" in operacion and lect is None: st.warning("⚠️ Falta la Lectura.")
-                # Se eliminó la línea: elif not tarjeta_final: st.warning(...) 
                 else:
                     lts_val = lts if lts is not None else 0.0
                     lect_val = lect if lect is not None else 0.0
@@ -351,6 +345,7 @@ with tab1:
                         "tarjeta": tarjeta_final,
                         "estado_conciliacion": "N/A", "fuente_dato": "APP_MANUAL", "imagen_base64": img_str, "nombre_archivo": img_name, "mime_type": img_mime}
                     confirmar_envio(pl)
+
 # --- TAB 2: AUDITORÍA ---
 with tab2:
     st.subheader("🔐 Acceso Restringido")
@@ -392,13 +387,12 @@ with tab2:
                 
                 if not dff.empty:
                     st.subheader("📋 Detalle")
-                    
-                    # --- AQUI SE MUESTRA LA TARJETA ---
                     cols_ver = ['fecha','nombre_maquina','origen','litros','tipo_combustible','tarjeta','responsable_cargo']
                     cols_exist = [c for c in cols_ver if c in dff.columns]
                     st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
                     st.subheader("📊 Rendimiento General (Resumen)")
+                    df_res = pd.DataFrame() # Inicializar
                     if 'tipo_operacion' in dff.columns:
                         df_maq = dff[dff['tipo_operacion'].astype(str).str.contains("Máquina", na=False)]
                         if not df_maq.empty:
@@ -447,7 +441,13 @@ with tab2:
                             
                             st.markdown("### 📥 Descargas")
                             c1, c2, c3 = st.columns(3)
-                            c1.download_button("Excel", generar_excel(dff[cols_exist]), "Historial.xlsx")
+                            
+                            # --- MODIFICACIÓN SOLICITADA: DESCARGAR RENDIMIENTO GENERAL EN EXCEL ---
+                            if not df_res.empty:
+                                c1.download_button("📊 Excel Rendimiento", generar_excel(df_res), "Rendimiento_General.xlsx")
+                            else:
+                                c1.info("Sin datos para Excel")
+                                
                             c2.download_button("PDF", generar_pdf_con_graficos(df_res, "Reporte"), "Reporte.pdf")
                             c3.download_button("Word", generar_word(df_res, "Reporte"), "Reporte.docx")
                     
@@ -536,7 +536,14 @@ with tab3:
 
 # --- TAB 4: ANÁLISIS ---
 with tab4: 
-    if st.text_input("PIN Analítico", type="password", key="p3") == ACCESS_CODE_MAESTRO:
+    # --- MODIFICACIÓN SOLICITADA: LOGIN IGUAL A TAB 2 ---
+    st.subheader("🔐 Acceso Analítico")
+    c_login3, c_login4 = st.columns(2)
+    with c_login3: usuario_analisis = st.selectbox("Usuario:", ["Auditoria", "Natalia Santana"], key="user_tab4")
+    with c_login4: pass_analisis = st.text_input("Contraseña:", type="password", key="pass_tab4")
+    
+    # Credenciales ya definidas arriba (credenciales_validas)
+    if pass_analisis == credenciales_validas.get(usuario_analisis):
         dfm = pd.read_csv(SHEET_URL); dfm.columns = dfm.columns.str.strip().str.lower()
         for c in ['litros','media','lectura_actual']: 
             if c in dfm.columns: 
@@ -584,7 +591,7 @@ with tab4:
                         if pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                         elif pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                         else: estado = "✅ Ideal"
-                    else:
+                    else: 
                         if pr > ideal * (1 + MARGEN_TOLERANCIA): estado = "⚠️ Alto Consumo"
                         elif pr < ideal * (1 - MARGEN_TOLERANCIA): estado = "✨ Muy Bueno"
                         else: estado = "✅ Ideal"
@@ -596,20 +603,37 @@ with tab4:
             dr = pd.DataFrame(res)
             st.subheader(f"📊 {maq}")
             c1, c2 = st.columns(2)
+
+            # GRÁFICO DE LÍNEA (RENDIMIENTO)
             fig_line, ax_line = plt.subplots(figsize=(6, 4)); fig_line.patch.set_facecolor('white'); ax_line.set_facecolor('white')
             ax_line.plot(dr['Mes'], dr['Promedio'], marker='o', label='Real', color='blue')
             if cod in FLOTA: ax_line.axhline(y=FLOTA[cod]['ideal'], color='r', linestyle='--', label='Ideal')
             ax_line.set_title("Rendimiento"); ax_line.legend(); ax_line.grid(True, alpha=0.3)
-            c1.pyplot(fig_line); plt.close(fig_line)
+            c1.pyplot(fig_line)
             
+            # --- MODIFICACIÓN: DESCARGA GRÁFICO LINEA ---
+            buf_line = io.BytesIO()
+            fig_line.savefig(buf_line, format="png")
+            buf_line.seek(0)
+            c1.download_button("⬇️ Descargar Gráfico Línea", buf_line, f"Rendimiento_{cod}.png", "image/png")
+            plt.close(fig_line)
+            
+            # GRÁFICO DE BARRAS (CONSUMO)
             fig_bar, ax_bar = plt.subplots(figsize=(6, 4)); fig_bar.patch.set_facecolor('white'); ax_bar.set_facecolor('white')
             ax_bar.bar(dr['Mes'], dr['Litros'], color='orange')
-            ax_bar.set_title("Consumo (Litros)"); c2.pyplot(fig_bar); plt.close(fig_bar)
+            ax_bar.set_title("Consumo (Litros)"); 
+            c2.pyplot(fig_bar)
+            
+            # --- MODIFICACIÓN: DESCARGA GRÁFICO BARRAS ---
+            buf_bar = io.BytesIO()
+            fig_bar.savefig(buf_bar, format="png")
+            buf_bar.seek(0)
+            c2.download_button("⬇️ Descargar Gráfico Barras", buf_bar, f"Consumo_{cod}.png", "image/png")
+            plt.close(fig_bar)
             
             st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.2f}"}), use_container_width=True)
             c1, c2 = st.columns(2)
             c1.download_button("PDF", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
             c2.download_button("Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
         else: st.info(f"Sin datos registrados para el año {y}.")
-
-
+    elif pass_analisis: st.error("❌ Contraseña incorrecta.")
