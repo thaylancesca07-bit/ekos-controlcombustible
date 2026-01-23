@@ -447,7 +447,6 @@ if "🔐 Auditoría General" in pestanas:
                 c1, c2, c3 = st.columns(3)
                 d1 = c1.date_input("Desde", date.today()-timedelta(30))
                 d2 = c2.date_input("Hasta", date.today())
-                # Lista combinada de encargados originales para el filtro
                 lista_encargados = ["Todos", "Juan Britez", "Diego Bordon", "Jonatan Vargas", "Cesar Cabañas"]
                 enc_filter = c3.selectbox("Filtrar por Encargado", lista_encargados)
                 
@@ -461,7 +460,7 @@ if "🔐 Auditoría General" in pestanas:
                     cols_exist = [c for c in cols_ver if c in dff.columns]
                     st.dataframe(dff[cols_exist].sort_values(by='fecha', ascending=False).style.format({"litros": "{:.1f}"}), use_container_width=True)
                     
-                    # LOGICA DE RENDIMIENTO (PARA TABLA Y EXCEL)
+                    # LOGICA DE RENDIMIENTO
                     st.subheader("📊 Resumen de Rendimiento")
                     df_res = pd.DataFrame()
                     if 'tipo_operacion' in dff.columns:
@@ -473,9 +472,7 @@ if "🔐 Auditoría General" in pestanas:
                                 l_total = dm['litros'].sum()
                                 rec_real = dm['lectura_actual'].max() - dm['lectura_actual'].min()
                                 
-                                # Ajuste si hay múltiples cargas
                                 l_ajustados = dm.sort_values('lectura_actual').iloc[1:]['litros'].sum() if len(dm) > 1 else l_total
-
                                 val_kml, val_lkm, val_lh, val_ideal = 0.0, 0.0, 0.0, 0.0
                                 
                                 if cod in FLOTA:
@@ -488,31 +485,25 @@ if "🔐 Auditoría General" in pestanas:
                                 else:
                                     val_kml = rec_real / l_ajustados if l_ajustados > 0 else 0
                                     
-                                estado = "N/A"
-                                if cod in FLOTA and val_ideal > 0:
-                                    comp = val_kml if FLOTA[cod]['unidad'] == 'KM' else val_lh
-                                    # Lógica simple de estado
-                                    estado = "Normal" # Simplificado para brevedad, pero la lógica existe arriba
-
                                 res.append({"Código": cod, "Recorrido": round(rec_real, 1), "Litros": round(l_total, 1), 
                                             "Km/L": round(val_kml, 2), "L/H": round(val_lh, 2), "Ideal": val_ideal})
                             
                             df_res = pd.DataFrame(res)
                             st.dataframe(df_res, use_container_width=True)
 
-                    st.markdown("### 📥 Descargas")
-                    b1, b2, b3 = st.columns(3)
-                    
-                    if not df_res.empty:
-                        b1.download_button("📊 Excel Rendimiento", generar_excel(df_res), "Rendimiento.xlsx")
-                    else: b1.info("Sin datos rendimiento")
-                    
-                    b2.download_button("📄 PDF Reporte", generar_pdf_con_graficos(df_res if not df_res.empty else dff, "Reporte"), "Reporte.pdf")
-                    b3.download_button("📝 Word Simple", generar_word(df_res if not df_res.empty else dff, "Reporte"), "Reporte.docx")
-
-                    st.markdown("---")
-                    # GENERADOR CORPORATIVO (SOLO ADMIN AUDITORIA)
+                    # --- SECCIÓN DE DESCARGAS (SOLO AUDITORIA) ---
                     if usuario_actual == "Auditoria":
+                        st.markdown("### 📥 Descargas")
+                        b1, b2, b3 = st.columns(3)
+                        
+                        if not df_res.empty:
+                            b1.download_button("📊 Excel Rendimiento", generar_excel(df_res), "Rendimiento.xlsx")
+                        else: b1.info("Sin datos rendimiento")
+                        
+                        b2.download_button("📄 PDF Reporte", generar_pdf_con_graficos(df_res if not df_res.empty else dff, "Reporte"), "Reporte.pdf")
+                        b3.download_button("📝 Word Simple", generar_word(df_res if not df_res.empty else dff, "Reporte"), "Reporte.docx")
+
+                        st.markdown("---")
                         with st.expander("📂 Generar Informe Corporativo (Excelencia)"):
                             pass_exc = st.text_input("Contraseña Admin:", type="password")
                             if pass_exc == PASS_EXCELENCIA:
@@ -668,11 +659,12 @@ if "🚜 Análisis Anual" in pestanas:
                     ax_line.grid(True, alpha=0.3)
                     st.pyplot(fig_line)
                     
-                    # Botón descarga Gráfico 1
-                    buf_line = io.BytesIO()
-                    fig_line.savefig(buf_line, format="png")
-                    buf_line.seek(0)
-                    st.download_button("⬇️ Descargar Gráfico Línea", buf_line, f"Rendimiento_{cod}.png", "image/png")
+                    # Botón descarga Gráfico 1 (SOLO AUDITORIA)
+                    if usuario_actual == "Auditoria":
+                        buf_line = io.BytesIO()
+                        fig_line.savefig(buf_line, format="png")
+                        buf_line.seek(0)
+                        st.download_button("⬇️ Descargar Gráfico Línea", buf_line, f"Rendimiento_{cod}.png", "image/png")
                     plt.close(fig_line)
 
                 # --- Columna 2: Gráfico de Barras (Consumo) ---
@@ -684,11 +676,12 @@ if "🚜 Análisis Anual" in pestanas:
                     ax_bar.grid(axis='y', alpha=0.3)
                     st.pyplot(fig_bar)
                     
-                    # Botón descarga Gráfico 2
-                    buf_bar = io.BytesIO()
-                    fig_bar.savefig(buf_bar, format="png")
-                    buf_bar.seek(0)
-                    st.download_button("⬇️ Descargar Gráfico Barras", buf_bar, f"Consumo_{cod}.png", "image/png")
+                    # Botón descarga Gráfico 2 (SOLO AUDITORIA)
+                    if usuario_actual == "Auditoria":
+                        buf_bar = io.BytesIO()
+                        fig_bar.savefig(buf_bar, format="png")
+                        buf_bar.seek(0)
+                        st.download_button("⬇️ Descargar Gráfico Barras", buf_bar, f"Consumo_{cod}.png", "image/png")
                     plt.close(fig_bar)
                 
                 # 5. Tabla de Datos (Abajo)
@@ -696,15 +689,15 @@ if "🚜 Análisis Anual" in pestanas:
                 st.markdown("#### 📋 Detalle Mensual")
                 st.dataframe(dr.style.format({"Litros": "{:.1f}", "Promedio": "{:.2f}"}), use_container_width=True)
                 
-                # 6. Botones de Reporte Final
-                b_pdf, b_word = st.columns(2)
-                b_pdf.download_button("📄 Descargar PDF Completo", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
-                b_word.download_button("📝 Descargar Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
+                # 6. Botones de Reporte Final (SOLO AUDITORIA)
+                if usuario_actual == "Auditoria":
+                    b_pdf, b_word = st.columns(2)
+                    b_pdf.download_button("📄 Descargar PDF Completo", generar_pdf_con_graficos(dr, f"Reporte {cod}"), f"{cod}.pdf")
+                    b_word.download_button("📝 Descargar Word", generar_word(dr, f"Reporte {cod}"), f"{cod}.docx")
                 
             else: 
                 st.info(f"No se encontraron registros para {cod} en el año {y}.")
                 
         except Exception as e:
             st.error(f"Error en el análisis: {e}")
-
 
