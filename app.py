@@ -12,7 +12,7 @@ from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # --- 1. CONFIGURACIÓN E IDENTIDAD ---
-st.set_page_config(page_title="Ekos Control 🇵🇾", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Ekos Forestal 🇵🇾", layout="wide", initial_sidebar_state="collapsed")
 
 # --- ESTILOS CSS ---
 st.markdown("""
@@ -700,4 +700,5 @@ if "🚜 Análisis Anual" in pestanas:
                 
         except Exception as e:
             st.error(f"Error en el análisis: {e}")
+
 
