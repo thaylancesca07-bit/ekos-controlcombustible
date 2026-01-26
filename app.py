@@ -32,19 +32,19 @@ SURTIDORES = ["Surtidor Petrobras", "Surtidor Shell", "Surtidor Crisma", "Surtid
 
 # --- USUARIOS ---
 USUARIOS_DB = {
-    "Juan Britez":    {"pwd": "jbritez45",   "rol": "operador", "barril": "Barril Juan"},
-    "Diego Bordon":   {"pwd": "Bng2121",     "rol": "operador", "barril": "Barril Diego"},
-    "Jonatan Vargas": {"pwd": "jv2026",      "rol": "operador", "barril": "Barril Jonatan"},
-    "Cesar Cabañas":  {"pwd": "cab14",       "rol": "operador", "barril": "Barril Cesar"},
-    "Natalia Santana": {"pwd": "Santana2057", "rol": "admin",    "barril": "Acceso Total"},
+    "Juan Britez":    {"pwd": "jbritez45",   "rol": "operador", "barril": "Barril de Juan"},
+    "Diego Bordon":   {"pwd": "Bng2121",     "rol": "operador", "barril": "Barril de Diego"},
+    "Jonatan Vargas": {"pwd": "jv2026",      "rol": "operador", "barril": "Barril de Jonatan"},
+    "Cesar Cabanas":  {"pwd": "cab14",       "rol": "operador", "barril": "Barril de Cesar"},
+    "Natalia Gonzalez": {"pwd": "Gonzalez2057", "rol": "admin",    "barril": "Acceso Total"},
     "Auditoria":       {"pwd": "1645",        "rol": "admin",    "barril": "Acceso Total"}
 }
-BARRILES_LISTA = ["Barril Diego", "Barril Juan", "Barril Jonatan", "Barril Cesar"]
+BARRILES_LISTA = ["Barril de Diego", "Barril de Juan", "Barril de Jonatan", "Barril de Cesar"]
 
 # --- TARJETAS ---
 TARJETAS_DATA = {
     "Diego Bordon": ["MULTI Diego - 70026504990100126"],
-    "Cesar Cabañas": ["MULTI CESAR - 70026504990100140", "M-02 - 70026504990100179"],
+    "Cesar Cabanas": ["MULTI CESAR - 70026504990100140", "M-02 - 70026504990100179"],
     "Juan Britez": ["MULTI JUAN - 70026504990100112", "M-13 - 70026504990100024"],
     "Jonatan Vargas": ["M-03 - 70026504990100189", "S-03 - 70026504990100056", "S-05 - 70026504990100063", "MULTI JONATAN - 70026504990100134"]
 }
@@ -321,3 +321,4 @@ with tabs[1]:
 with tabs[2]:
     st.write("Modulo de Conciliacion en Mantenimiento...")
 EOF
+
